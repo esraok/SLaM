@@ -1,0 +1,57 @@
+/ Adaptive introgression after a population split (second stage)
+
+#MUTATION TYPES 
+m1 0.5 f 0.0 / neutral 
+m2 0.8 f 0.01 /adaptive 
+
+#MUTATION RATE 
+1e-9 
+
+#GENOMIC ELEMENT TYPES 
+g1 m1 1.0 
+
+#CHROMOSOME ORGANIZATION 
+g1 1 100000 / uniform chromosome structure (100 kb) 
+
+#RECOMBINATION RATE 
+100000 5e-8 / uniform recombination rate (5 cM/Mb) 
+
+#GENERATIONS 
+1300 
+
+#DEMOGRAPHY AND STRUCTURE 
+1 M p2 p1 0.001 / set migration rate p1 to p2 
+
+#OUTPUT 
+100 R p1 100 / draw sample of 100 genomes from 1 
+100 R p2 100 / draw sample of 100 genomes from 2 
+200 R p1 100 
+200 R p2 100
+300 R p1 100 
+300 R p2 100
+400 R p1 100 
+400 R p2 100
+500 R p1 100 
+500 R p2 100
+600 R p1 100 
+600 R p2 100
+700 R p1 100 
+700 R p2 100
+800 R p1 100 
+800 R p2 100
+900 R p1 100 
+900 R p2 100
+1000 R p1 100 
+1000 R p2 100
+1100 R p1 100 
+1100 R p2 100
+1200 R p1 100 
+1200 R p2 100
+1300 R p1 100 
+1300 R p2 100
+
+#INITIALIZATION 
+outfile / initialize simulation using output from first stage 
+
+#PREDETERMINED MUTATIONS 
+1 m2 50000 p1 0 10 / introduce adaptive mutation
