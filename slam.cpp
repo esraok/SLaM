@@ -1,8 +1,10 @@
-// SLiM: a forward population genetic simulation with selection and linkage
+// SLaM: a forward population-genetic sumulation program with selection, linkage, migration, and
+  // and deme-specific fitness regimes. SLaM stands for "SLiM with local adaptation and migration",
+  // where "SLiM" is the software written by Philipp Messer (2013) and means "Selection on Linked
+  // Mutations". SLaM was developed based on SLiM version 1.7, (C) 2013 Philipp Messer.
+// version 1.0 (Month xxth, 2014)
 //
-// version 1.7 (September 17th, 2013)
-//
-// Copyright (C) 2013  Philipp Messer
+// Copyright (C) 201x Simon Aeschbacher
 //
 // compile by:
 //
@@ -23,36 +25,45 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// Modifications by Simon Aeschbacher, as compared to the original SLiM code:
+// Modifications by Simon Aeschbacher, as compared to the original SLiM code (version 1.7):
 // 05/19/2014: Mutations are now introduced in linkage equilibrium, rather than in linkage
-    // disequilibrium. This concerns the method introduce_mutation() of the class 'population'.
+  // disequilibrium. This concerns the method introduce_mutation() of the class 'population'.
 // 08/19/2014: Changed from multiplicative to additive fitness interactions among loci. This
-    // concerns the method W() of the class 'subpopulation'.
+  // concerns the method W() of the class 'subpopulation'.
 // xx/xx/2014: Added the possibility to define habitat specific fitnesses. To this purpose, the
-    //class 'habitat' was introduced. Each subpopulation must be assigned a habitat. For each
-    // habitat the user specifies how the fitnesses parameters (selection and dominance
-    // coefficients) are to be modified relative to the reference habitat. The reference habitat is
-    // implicitly given by the initial description of the mutation types, and does not need to be
-    // redefined. There is also a new type of event, called "changing habitat", which allows
-    // assigning a habitat to any subpopulation. By default, any population assumes the reference
-    // habitat.
+  //class 'habitat' was introduced. Each subpopulation must be assigned a habitat. For each
+  // habitat the user specifies how the fitnesses parameters (selection and dominance
+  // coefficients) are to be modified relative to the reference habitat. The reference habitat is
+  // implicitly given by the initial description of the mutation types, and does not need to be
+  // redefined. There is also a new type of event, called "changing habitat", which allows
+  // assigning a habitat to any subpopulation. By default, any population assumes the reference
+  // habitat.
 // xx/xx/2014: Introduced a switch that allows the user to choose whether predetermined mutations
-    // introduced at a given point in time should initially be in linkage disequilibrium (as it was
-    // originally the case in SLiM) or at linkage equilibrium (new). The switch is added as an
-    // additional entry on each line in the #PREDETERMINED MUTATIONS section, before the optional
-    // parameter P <f>. The switch for initial linkage (dis)equilibrium is "le" for linkage
-    // equilibrium and "ld" for linkage disequilibrium.
-    // e.g.:
-    //          #PREDETERMINED MUTATIONS
-    //          <time> <mut-type> <x> <pop> <nAA> <nAa> <linkage> [P <f>]
+  // introduced at a given point in time should initially be in linkage disequilibrium (as it was
+  // originally the case in SLiM) or at linkage equilibrium (new). The switch is added as an
+  // additional entry on each line in the #PREDETERMINED MUTATIONS section, before the optional
+  // parameter P <f>. The switch for initial linkage (dis)equilibrium is "le" for linkage
+  // equilibrium and "ld" for linkage disequilibrium.
+  // Syntax:
+  //          #PREDETERMINED MUTATIONS
+  //          <time> <mut-type> <x> <pop> <nAA> <nAa> <linkage> [P <f>]
 // xx/xx/2014: Introduced a swith that allows the user to choose between multiplicative fitness
-    // interactions between loci (as in the original SLiM) and additive fitness interactions (new).
-    // This is a global setting, and has a new input section called #FITNESS INTERACTION that
-    // contains one line with one entry. This entry must be "a" for additive or "m" for
-    // multiplicative fitness interactions.
-    // e.g.:
-    //          #FITNESS INTERACTION
-    //          a
+  // interactions between loci (as in the original SLiM) and additive fitness interactions (new).
+  // This is a global setting, and has a new input section called #FITNESS INTERACTION that
+  // contains one line with one entry. This entry must be "a" for additive or "m" for
+  // multiplicative fitness interactions.
+  // Syntax:
+  //          #FITNESS INTERACTION
+  //          <interaction-type>
+// xx/xx/2014: Changed the mutation regime at non-neutral sites, such that at most two mutations of
+  // a non-neutral type are permitted at such sites. There still is not back-mutation. Neutral
+  // sites can accumulate more than one neutral mutation. However, as soon as a site is hit by
+  // the first mutation of a non-neutral type, no further mutations of a non-neutral type are
+  // allowed. If, however, the non-neutral mutation at a given site is lost from the population,
+  // the site will be considered as a neutral site again, and can accumulate at most one mutation
+  // of a non-neutral type.
+// xx/xx/2014: Reformatted the code so that it follows more or less the GNU indent style, where it
+  // did not do so before.
 
 #include <iostream>
 #include <iomanip>
@@ -101,7 +112,7 @@ bool operator< (const mutation &M1,const mutation &M2)
 };
 
 
-bool operator== (const mutation &M1,const mutation &M2)
+bool operator== (const mutation &M1,const mutation &M2) //
 {
   return (M1.x == M2.x && M1.t == M2.t && M1.s == M2.s); // TODO: Adjust to account for the fact
     // that s will be an array of doubles of length equal to the number of habitat types.
@@ -234,7 +245,8 @@ public:
 
 
 
-class chromosome : public vector<genomic_element>
+class chromosome : public vector<genomic_element> // class chromosome inherits from
+    // vector<genomic_element>
 {
   // the chromosome is a vector of genomic elements (type, start, end)
 
@@ -895,7 +907,10 @@ public:
   void introduce_mutation(introduced_mutation M, chromosome& chr) 
   {
     // introduce user-defined mutation
- 
+    // TODO: Make sure that if a mutation is to be introduced at a position at which there already
+        // is a mutation of a non-neutral type present, the pre-existing mutation is re-assigned
+        // a neutral type (there must be only one mutation of a non-neutral type at any site
+        // at any time)
     if(count(M.i)==0) { cerr << "ERROR (predetermined mutation): subpopulation "<< M.i << " does not exists" << endl; exit(1); }
     if(chr.mutation_types.count(M.t) == 0) 
       { 
@@ -1525,11 +1540,12 @@ public:
 
 
 
-void get_line(ifstream& infile,string& line)
+void get_line(ifstream& infile, string& line)
 {
-  getline(infile,line);
-  if(line.find("/")!= string::npos) { line.erase(line.find("/")); } // remove all after "/"
-  line.erase(0,line.find_first_not_of(' ') ); // remove leading whitespaces
+  getline(infile, line);
+  if(line.find("/")!= string::npos) { line.erase(line.find("/")); } // remove all after "/"; these
+        // lines are interpreted as comments
+  line.erase(0, line.find_first_not_of(' ') ); // remove leading whitespaces
   line.erase(line.find_last_not_of(' ') + 1); // remove trailing whitespaces
 };
 
@@ -1719,291 +1735,468 @@ void check_input_file(char* file)
   int population = 0;
 
   ifstream infile (file);
-  if (!infile.is_open()) { input_error(0,string(file)); }
+  // check if parameter file can be opened
+  if (!infile.is_open()) { input_error(0,string(file)); } // the method input_error handles
+        // different types of errors, here it is case "0"
 
   string line; string sub;
 
-  get_line(infile,line);
-
+  get_line(infile, line); // calls a modified getline function that takes care of some comment
+    // lines and white spaces at the beginning and end of lines.
+  // read line by line
   while(!infile.eof())
     {
-      if(line.find('#') != string::npos) 
-	{
-	  if(line.find("MUTATION RATE") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  if(line.find_first_not_of("1234567890.e-") != string::npos ) { input_error(1,line); }
-		  else { mutation_rate++; }
-		}
-	      get_line(infile,line); } }
+      if(line.find('#') != string::npos) // check for start of an input section, denoted by
+        // an initial '#'
+	      {
+        
+          // 'mutation rate' section
+          if(line.find("MUTATION RATE") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof())
+                {
+                  if(line.length()>0)
+                    {
+                      if(line.find_first_not_of("1234567890.e-") != string::npos)
+                        {  input_error(1,line);  }
+                      else
+                        {  mutation_rate++;  }
+                     }
+                   get_line(infile,line);
+                }
+            } // end of 'mutation rate' section
+        
+          // 'mutation types' section
+          else if(line.find("MUTATION TYPES") != string::npos)
+            {
+              get_line(infile, line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // section or end of file
+                {
+                  if(line.length()>0) // line is not empty
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub;
+                      if(sub.compare(0,1,"m") != 0) { good = 0; }
+                      sub.erase(0,1);
+                      if(sub.find_first_not_of("1234567890") != string::npos )
+                        { good = 0; } // id
+                      if(iss.eof()) // note that eof() here is the end of the string representing
+                          // the current 'line'
+                        { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890.-") != string::npos )
+                        { good = 0; } // h
+                      if(iss.eof()) { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("fge") != string::npos )
+                        { good = 0; } // DFE-type
+                      if(sub.compare("f")==0 || sub.compare("e")==0) // one parameter
+                        {
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub;
+                          if(sub.find_first_not_of("1234567890.-") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof()) { good = 0; }
+                        }
+                      if(sub.compare("g")==0) // two parameters
+                        {
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub;
+                          if(sub.find_first_not_of("1234567890.-") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub;
+                          if(sub.find_first_not_of("1234567890.-") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof()) { good = 0; }
+                        }
+                      if(good == 0)
+                        { input_error(2,line); }
+                      else { mutation_types++; }
+                    } // end of if line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section
+            } // end of mutation types section
+        
+          // 'genomic element types' section
+          else if(line.find("GENOMIC ELEMENT TYPES") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // section or end of file
+                {
+                  if(line.length()>0) // line is not emtpy
+                    {
+                      int good = 1;
+                      istringstream iss(line); iss >> sub;
+                      if(sub.compare(0,1,"g") != 0)
+                        { good = 0; }
+                      sub.erase(0,1);
+                      if(sub.find_first_not_of("1234567890") != string::npos )
+                        { good = 0; } // id
+                      if(iss.eof())
+                        { good = 0; }
+                      while(!iss.eof())
+                        {
+                          iss >> sub;
+                          if(sub.compare(0,1,"m") != 0)
+                            { good = 0; }
+                          sub.erase(0,1); // mutation type id
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub;
+                          if(sub.find_first_not_of("1234567890e.") != string::npos )
+                            { good = 0; } // fraction
+                        } // end of while not hit end of file
+                      if(good == 0)
+                        { input_error(3,line); }
+                      else { genomic_element_types++; }
+                    } // end of if line is not emtpy
+                  get_line(infile,line);
+                } // end of while not hitting next section
+            } // end of 'genomic element types' section
+        
+          // 'chromosome organization' section
+          else if(line.find("CHROMOSOME ORGANIZATION") != string::npos)
+            { get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // section or end of file
+                {
+                  if(line.length()>0)
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub;
+                      if(sub.compare(0,1,"g") != 0)
+                        { good = 0; }
+                      sub.erase(0,1);
+                      if(sub.find_first_not_of("1234567890") != string::npos )
+                        { good = 0; } // id
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; } // start
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; } // end
+                      if(!iss.eof())
+                        { good = 0; }
+                      if(good == 0)
+                        { input_error(4,line); }
+                      else
+                        { chromosome_organization++; }
+                    } // end of if line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'chromosome organization' section
+        
+          // 'recombination rate' section
+          else if(line.find("RECOMBINATION RATE") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof())
+                {
+                  if(line.length()>0) // if line is not empty
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; } // end
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e.-") != string::npos )
+                        { good = 0; } // rate
+                      if(!iss.eof())
+                        { good = 0; }
+                      if(good == 0)
+                        { input_error(5,line); }
+                      else { recombination_rate++; }
+                    } // end of if line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'recombination rate' section
+        
+          // 'gene conversion' section
+          else if(line.find("GENE CONVERSION") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                  // section or end of file
+                {
+                  if(line.length()>0) // if line is not emtpy
+                    {
+                      int good = 1;
+                      istringstream iss(line); iss >> sub;
+                      if(sub.find_first_not_of("1234567890e.-") != string::npos )
+                        { good = 0; } // fraction
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e.-") != string::npos )
+                        { good = 0; } // average length
+                      if(!iss.eof())
+                        { good = 0; }
+                      if(good == 0)
+                        { input_error(12,line); }
+                    } // end of if line is not empty
+                      get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'gene conversion' section
+        
+          // 'generations' section
+          else if(line.find("GENERATIONS") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                  // section or end of file
+                {
+                  if(line.length()>0) // if line is not empty
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; } // T
+                      if(!iss.eof())
+                        { good = 0; }
+                      iss >> sub;
+                      if(good == 0)
+                        { input_error(6,line); }
+                      else { generations++; }
+                    } // end of line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'generations' section
+        
+          // 'demography and structure' section
+          else if(line.find("DEMOGRAPHY AND STRUCTURE") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                  // section or end of file
+                {
+                  if(line.length()>0) // if line is not empty
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; } // t(ime)
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("PSMN") != string::npos )
+                        { good = 0; } // event type
+                    
+                      if(sub.compare("P") == 0) // adding a new population; expect two or three
+                        // positive integers (the third one for the source population is optional)
+                        {
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // p1
+                          if(sub.compare(0,1,"p") != 0)
+                            { good = 0; }
+                          sub.erase(0,1);
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // N (size of new population)
+                          if(sub.find_first_not_of("1234567890e") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof()) // p2 (source population has been specified)
+                            { // if not hit end of file
+                              iss >> sub;
+                              if(sub.compare(0,1,"p") != 0)
+                                { good = 0; }
+                              sub.erase(0,1);
+                              if(sub.find_first_not_of("1234567890") != string::npos )
+                                { good = 0; }
+                              if(!iss.eof())
+                                { good = 0; }
+                            } // end of if not hit end of file
+                          population++;
+                        } // end of adding a new population
+                    
+                      if(sub.compare("N")==0) // changing population size; expect two positive
+                        // integers
+                        {
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // p (population identifier)
+                          if(sub.compare(0,1,"p") != 0)
+                            { good = 0; }
+                          sub.erase(0,1);
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // N (new size)
+                          if(sub.find_first_not_of("1234567890e") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof())
+                            { good = 0; }
+                        } // end of changing population size
 
+                      if(sub.compare("S")==0) // changing selfing rate; expect one positive integer and a double
+                        {
+                          if(iss.eof())
+                              { good = 0; }
+                          iss >> sub; // p (population identifier)
+                          if(sub.compare(0,1,"p") != 0)
+                            { good = 0; }
+                          sub.erase(0,1);
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // sigma (selfing rate)
+                          if(sub.find_first_not_of("1234567890.-e") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof())
+                            { good = 0; }
+                        } // end of changing selfing rate
 
-	  else if(line.find("MUTATION TYPES") != string::npos) { get_line(infile,line);
+                      if(sub.compare("M")==0) // changing migration rate; two positive integers and
+                        // a double
+                        {
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // p (id of target population)
+                          if(sub.compare(0,1,"p") != 0)
+                            { good = 0; }
+                          sub.erase(0,1);
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // p (id of source population)
+                          if(sub.compare(0,1,"p") != 0)
+                            { good = 0; }
+                          sub.erase(0,1);
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // M (new migration rate)
+                          if(sub.find_first_not_of("1234567890.-e") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof())
+                            { good = 0; }
+                        } // end of changing migration rate
+		  
+                      if(good == 0)
+                        { input_error(7,line); }
+                    } // end of if line is not emtpy
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'demography and structure' section
+        
+          // 'output section
+          else if(line.find("OUTPUT") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof())
+                { // while not hitting next section or end of file
+                  if(line.length()>0) // if line is not emtpy
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub;
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; } // t(ime)
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub;
+                      if(sub.find_first_not_of("ARFT") != string::npos )
+                        { good = 0; } // event type
+                      if(sub.compare("A") == 0) // output state of entire population; expect no
+                        // parameter or a filename
+                        {
+                          if(!iss.eof()) // there is a filename
+                            {
+                              iss >> sub;
+                              if(!iss.eof())
+                                { good = 0; }
+                            } // end of hitting end of file
+                        } // end of if this is the "A" subtype of event
+                      if(sub.compare("R")==0) // output random sample; expect two parameters
+                        // and an optional flag specifying whether output should be given in the ms
+                        // format
+                        {
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // p (population id)
+                          if(sub.compare(0, 1, "p") != 0)
+                            { good = 0; }
+                          sub.erase(0, 1);
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // size of sample
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof()) // one more argument, the ms option, is present
+                            {
+                              iss >> sub; // MS
+                              if(sub != "MS")
+                                { good = 0; }
+                            } // end of check for optional MS option
+                          if(!iss.eof())
+                            { good = 0; }
+                        } // end of if this is the "R" subtype of event
+                      if(sub.compare("F") == 0) // output list of all fixed mutations; expect no
+                        // parameter
+                        {
+                        if(!iss.eof())
+                          { good = 0; }
+                        } // end of if this is the "F" subtype of event
+                      if(sub.compare("T") == 0) // output track of mutations of particular type;
+                        // expect one parameter (id of mutation type)
+                        {
+                        if(iss.eof())
+                          { good = 0; }
+                        iss >> sub; // mutation type
+                        if(sub.compare(0, 1, "m") != )
+                          { good = 0; }
+                        sub.erase(0, 1);
+                        if(sub.find_first_not_of("1234567890") != string::npos)
+                          { good = 0; }
+                        if(!iss.eof())
+                          { good = 0; }
+                        } // end of if this is the "T" subtype of event
+                      if(good == 0)
+                        { input_error(8,line); }
+                    } // end of if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next section or end of file
+            } // end of 'output' section
+        
+          // GO ON HERE
+          else if(line.find("INITIALIZATION") != string::npos) { get_line(infile,line);
 	    while(line.find('#') == string::npos && !infile.eof()) {
 	      if(line.length()>0)
 		{
 		  int good = 1;
 
 		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.compare(0,1,"m") != 0) { good = 0; } sub.erase(0,1);
-
-		  if(sub.find_first_not_of("1234567890") != string::npos )   { good = 0; } // id
-		  if(iss.eof()) { good = 0; } iss >> sub;
- 		  if(sub.find_first_not_of("1234567890.-") != string::npos ) { good = 0; } // h
-		  if(iss.eof()) { good = 0; } iss >> sub; 
-		  if(sub.find_first_not_of("fge") != string::npos )          { good = 0; } // DFE-type
-		  
-		  if(sub.compare("f")==0 || sub.compare("e")==0) // one parameter
-		    { 
-		      if(iss.eof()) { good = 0; } iss >> sub;
-		      if(sub.find_first_not_of("1234567890.-") != string::npos ) { good = 0; }
-		      if(!iss.eof()) { good = 0; }
-		    }
-		  if(sub.compare("g")==0) // two parameters
-		    {
-		      if(iss.eof()) { good = 0; } iss >> sub;
-		      if(sub.find_first_not_of("1234567890.-") != string::npos ) { good = 0; }
-		      if(iss.eof()) { good = 0; } iss >> sub;
-		      if(sub.find_first_not_of("1234567890.-") != string::npos ) { good = 0; }
-		      if(!iss.eof()) { good = 0; }
-		    }
-		   
-		  if(good==0) { input_error(2,line); }
-		  else { mutation_types++; }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("GENOMIC ELEMENT TYPES") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.compare(0,1,"g") != 0) { good = 0; } sub.erase(0,1);
-
-		  if(sub.find_first_not_of("1234567890") != string::npos )   { good = 0; } // id
-		  if(iss.eof()) { good = 0; }
-
- 		  while(!iss.eof())
-		    {
-		      iss >> sub;
-		      if(sub.compare(0,1,"m") != 0) { good = 0; } sub.erase(0,1); // mutation type id
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; } 
-		      if(iss.eof()) { good = 0; } iss >> sub; 
-		      if(sub.find_first_not_of("1234567890e.") != string::npos ) { good = 0; } // fraction
-		    }
-
-		  if(good==0) { input_error(3,line); }
-		  else { genomic_element_types++; }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("CHROMOSOME ORGANIZATION") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.compare(0,1,"g") != 0) { good = 0; } sub.erase(0,1);
-
-		  if(sub.find_first_not_of("1234567890") != string::npos )   { good = 0; } // id
-		  if(iss.eof()) { good = 0; } iss >> sub;
-		  if(sub.find_first_not_of("1234567890e") != string::npos )   { good = 0; } // start
-		  if(iss.eof()) { good = 0; } iss >> sub;
-		  if(sub.find_first_not_of("1234567890e") != string::npos )   { good = 0; } // end
 		  if(!iss.eof()) { good = 0; }
- 		  
 
-		  if(good==0) { input_error(4,line); }
-		  else { chromosome_organization++; }
-		}
-	      get_line(infile,line); } }
-
-	  
-	  else if(line.find("RECOMBINATION RATE") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.find_first_not_of("1234567890e") != string::npos )   { good = 0; } // end
-		  if(iss.eof()) { good = 0; } iss >> sub;
-		  if(sub.find_first_not_of("1234567890e.-") != string::npos )   { good = 0; } // rate
-		  if(!iss.eof()) { good = 0; }
- 		  
-		  if(good==0) { input_error(5,line); }
-		  else { recombination_rate++; }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("GENE CONVERSION") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.find_first_not_of("1234567890e.-") != string::npos )   { good = 0; } // fraction
-		  if(iss.eof()) { good = 0; } iss >> sub;
-		  if(sub.find_first_not_of("1234567890e.-") != string::npos )   { good = 0; } // average length
-		  if(!iss.eof()) { good = 0; }
- 		  
-		  if(good==0) { input_error(12,line); }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("GENERATIONS") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.find_first_not_of("1234567890e") != string::npos )   { good = 0; } // T
-		  if(!iss.eof()) { good = 0; } iss >> sub;
-
-		  if(good==0) { input_error(6,line); }
-		  else { generations++; }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("DEMOGRAPHY AND STRUCTURE") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.find_first_not_of("1234567890e") != string::npos )   { good = 0; } // t
-		  if(iss.eof()) { good = 0; } iss >> sub;
-		  if(sub.find_first_not_of("PSMN") != string::npos )  { good = 0; } // event type
-
-		  if(sub.compare("P")==0) // two or three positive integers
-		    { 
-		      if(iss.eof()) { good = 0; } iss >> sub; // p1
-		      if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-
-		      if(iss.eof()) { good = 0; } iss >> sub; // N
-		      if(sub.find_first_not_of("1234567890e") != string::npos ) { good = 0; }
-		      
-		      if(!iss.eof()) // p2
-			{ 
-			  iss >> sub;
-			  if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-			  if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-			  if(!iss.eof()) { good = 0; }
-			}
-
-		      population++;
-		    }
-
-		  if(sub.compare("N")==0) // two positive integers
-		    { 
-		      if(iss.eof()) { good = 0; } iss >> sub; // p
-		      if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		      if(iss.eof()) { good = 0; } iss >> sub; // N
-		      if(sub.find_first_not_of("1234567890e") != string::npos ) { good = 0; }		      
-		      if(!iss.eof()) { good = 0; }
-		    }
-
-		  if(sub.compare("S")==0) // one positive integer and a double
-		    { 
-		      if(iss.eof()) { good = 0; } iss >> sub; // p
-		      if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		      if(iss.eof()) { good = 0; } iss >> sub; // sigma
-		      if(sub.find_first_not_of("1234567890.-e") != string::npos ) { good = 0; }	      
-		      if(!iss.eof()) { good = 0; }
-		    }
-
-		  if(sub.compare("M")==0) // two positive integers and a double
-		    { 
-		      if(iss.eof()) { good = 0; } iss >> sub; // p
-		      if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		      if(iss.eof()) { good = 0; } iss >> sub; // p
-		      if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		      if(iss.eof()) { good = 0; } iss >> sub; // M
-		      if(sub.find_first_not_of("1234567890.-e") != string::npos ) { good = 0; }
-		      if(!iss.eof()) { good = 0; }
-		    }
-		  
-		  if(good==0) { input_error(7,line); }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("OUTPUT") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  
-		  if(sub.find_first_not_of("1234567890e") != string::npos )   { good = 0; } // t
-		  if(iss.eof()) { good = 0; } iss >> sub;
-		  if(sub.find_first_not_of("ARFT") != string::npos )  { good = 0; } // event type
-
-		  if(sub.compare("A")==0) // no parameter of filename
-		    { 
-		      if(!iss.eof()) { iss >> sub; if(!iss.eof()) { good = 0; } }
-		    }
-
-		  if(sub.compare("R")==0) // two positive integers
-		    { 
-		      if(iss.eof()) { good = 0; } iss >> sub; // p1
-		      if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		      if(iss.eof()) { good = 0; } iss >> sub; // p2
-		      if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }		      
-		      if(!iss.eof()) 
-			{
-			  iss >> sub; // MS
-			  if(sub != "MS") { good = 0; }
-			}
-		      if(!iss.eof()) { good = 0; }
-		    }
-
-		   if(sub.compare("F")==0) // no parameter
-		    { 
-		      if(!iss.eof()) { good = 0; }
-		    }
-
-		   if(good==0) { input_error(8,line); }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("INITIALIZATION") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  if(!iss.eof()) { good = 0; }
-
-		  if(good==0) { input_error(9,line); }
+		  if(good == 0) { input_error(9,line); }
 
 		  population++;
 		}
@@ -2020,7 +2213,7 @@ void check_input_file(char* file)
 		  if(sub.find_first_not_of("1234567890-") != string::npos ) { good = 0; }
 		  if(!iss.eof()) { good = 0; }
 
-		  if(good==0) { input_error(10,line); }
+		  if(good == 0) { input_error(10,line); }
 		}
 	      get_line(infile,line); } }
 
@@ -2056,7 +2249,7 @@ void check_input_file(char* file)
 
 		  if(!iss.eof()) { good = 0; }
 
-		  if(good==0) { input_error(11,line); }
+		  if(good == 0) { input_error(11,line); }
 		}
 	      get_line(infile,line); } }
 
@@ -2390,7 +2583,8 @@ int main(int argc,char *argv[])
   if(argc<=1) { cerr << "usage: slim <parameter file>" << endl; exit(1); } 
 
   char* input_file = argv[1];
-  check_input_file(input_file);
+    // GO ON HERE.
+  check_input_file(input_file); // calls method implemented above
 
   int T; // maximum number of generations
   chromosome chr; // chromosome
