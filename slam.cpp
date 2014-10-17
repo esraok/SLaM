@@ -1744,29 +1744,30 @@ void check_input_file(char* file)
   get_line(infile, line); // calls a modified getline function that takes care of some comment
     // lines and white spaces at the beginning and end of lines.
   // read line by line
-  while(!infile.eof())
+  while(!infile.eof()) // while not hitting end of file 'infile'
     {
       if(line.find('#') != string::npos) // check for start of an input section, denoted by
-        // an initial '#'
+        // an initial '#'; if this line starts a new parameter section
 	      {
         
           // 'mutation rate' section
           if(line.find("MUTATION RATE") != string::npos)
             {
               get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof())
-                {
-                  if(line.length()>0)
-                    {
-                      if(line.find_first_not_of("1234567890.e-") != string::npos)
-                        {  input_error(1,line);  }
-                      else
-                        {  mutation_rate++;  }
-                     }
-                   get_line(infile,line);
-                }
+            while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              // section or end of file
+              {
+                if(line.length()>0) // if line is not empty
+                  {
+                    if(line.find_first_not_of("1234567890.e-") != string::npos)
+                      {  input_error(1,line);  }
+                    else
+                      {  mutation_rate++;  } // mutation_rate now 1
+                  } // end of if line is not empty
+                get_line(infile,line);
+              } // end of while not hitting next section or end of file
             } // end of 'mutation rate' section
-        
+
           // 'mutation types' section
           else if(line.find("MUTATION TYPES") != string::npos)
             {
@@ -1818,7 +1819,7 @@ void check_input_file(char* file)
                         }
                       if(good == 0)
                         { input_error(2,line); }
-                      else { mutation_types++; }
+                      else { mutation_types++; } // increase counter of mytation types
                     } // end of if line is not empty
                   get_line(infile,line);
                 } // end of while not hitting next section
@@ -1858,7 +1859,7 @@ void check_input_file(char* file)
                         } // end of while not hit end of file
                       if(good == 0)
                         { input_error(3,line); }
-                      else { genomic_element_types++; }
+                      else { genomic_element_types++; } // increase counter
                     } // end of if line is not emtpy
                   get_line(infile,line);
                 } // end of while not hitting next section
@@ -1895,7 +1896,7 @@ void check_input_file(char* file)
                       if(good == 0)
                         { input_error(4,line); }
                       else
-                        { chromosome_organization++; }
+                        { chromosome_organization++; } // increase counter
                     } // end of if line is not empty
                   get_line(infile,line);
                 } // end of while not hitting next section or end of file
@@ -1923,7 +1924,7 @@ void check_input_file(char* file)
                         { good = 0; }
                       if(good == 0)
                         { input_error(5,line); }
-                      else { recombination_rate++; }
+                      else { recombination_rate++; } // increase counter
                     } // end of if line is not empty
                   get_line(infile,line);
                 } // end of while not hitting next section or end of file
@@ -1975,7 +1976,7 @@ void check_input_file(char* file)
                       iss >> sub;
                       if(good == 0)
                         { input_error(6,line); }
-                      else { generations++; }
+                      else { generations++; } // increase counter
                     } // end of line is not empty
                   get_line(infile,line);
                 } // end of while not hitting next section or end of file
@@ -2028,7 +2029,7 @@ void check_input_file(char* file)
                               if(!iss.eof())
                                 { good = 0; }
                             } // end of if not hit end of file
-                          population++;
+                          population++; // increase counter
                         } // end of adding a new population
                     
                       if(sub.compare("N")==0) // changing population size; expect two positive
@@ -2171,7 +2172,7 @@ void check_input_file(char* file)
                         if(iss.eof())
                           { good = 0; }
                         iss >> sub; // mutation type
-                        if(sub.compare(0, 1, "m") != )
+                        if(sub.compare(0, 1, "m") != 0)
                           { good = 0; }
                         sub.erase(0, 1);
                         if(sub.find_first_not_of("1234567890") != string::npos)
@@ -2186,86 +2187,132 @@ void check_input_file(char* file)
                 } // end of while not hitting next section or end of file
             } // end of 'output' section
         
-          // GO ON HERE
-          else if(line.find("INITIALIZATION") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  if(!iss.eof()) { good = 0; }
-
-		  if(good == 0) { input_error(9,line); }
-
-		  population++;
-		}
-	      get_line(infile,line); } }
-
-
-	   else if(line.find("SEED") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub;
-		  if(sub.find_first_not_of("1234567890-") != string::npos ) { good = 0; }
-		  if(!iss.eof()) { good = 0; }
-
-		  if(good == 0) { input_error(10,line); }
-		}
-	      get_line(infile,line); } }
-
-
-	  else if(line.find("PREDETERMINED MUTATIONS") != string::npos) { get_line(infile,line);
-	    while(line.find('#') == string::npos && !infile.eof()) {
-	      if(line.length()>0)
-		{
-		  int good = 1;
-
-		  istringstream iss(line); iss >> sub; // time
-		  if(sub.find_first_not_of("1234567890e") != string::npos ) { good = 0; }
-		  if(iss.eof()) { good = 0; } iss >> sub; // id
-		  if(sub.compare(0,1,"m") != 0) { good = 0; } sub.erase(0,1);
-		  if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		  if(iss.eof()) { good = 0; } iss >> sub; // x
-		  if(sub.find_first_not_of("1234567890e") != string::npos ) { good = 0; }
-		  if(iss.eof()) { good = 0; } iss >> sub; // sub
-		  if(sub.compare(0,1,"p") != 0) { good = 0; } sub.erase(0,1);
-		  if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		  if(iss.eof()) { good = 0; } iss >> sub; // nAA
-		  if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		  if(iss.eof()) { good = 0; } iss >> sub; // nAa
-		  if(sub.find_first_not_of("1234567890") != string::npos ) { good = 0; }
-		  
-		  if(!iss.eof())
-		    {
-		      iss >> sub;
-		      if(sub.find_first_not_of("P") != string::npos ) { good = 0; }
-		      if(iss.eof()) { good = 0; } iss >> sub; // freq
-		      if(sub.find_first_not_of("1234567890.-e") != string::npos ) { good = 0; }
-		    }
-
-		  if(!iss.eof()) { good = 0; }
-
-		  if(good == 0) { input_error(11,line); }
-		}
-	      get_line(infile,line); } }
-
-	  else { input_error(-1,line); }
-	}
+          // 'initialisation' section
+          else if(line.find("INITIALIZATION") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next 
+                // section or end of file
+                {
+                  if(line.length()>0) // if line is not emtpy
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub; // name of initialisation file
+                      if(!iss.eof())
+                        { good = 0; }
+                      if(good == 0)
+                        { input_error(9,line); }
+                      population++;
+                    } // enf of if line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'initialisation' section
+          
+          // 'seed' section
+          else if(line.find("SEED") != string::npos)
+            { 
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting end of
+                // section or end of file
+                {
+                  if(line.length()>0) // if line is not empty
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub; // seed
+                      if(sub.find_first_not_of("1234567890-") != string::npos ) { good = 0; }
+                      if(!iss.eof()) { good = 0; }
+                      if(good == 0) { input_error(10,line); }
+                    }
+                  get_line(infile,line);
+                } // end of if line is not empty
+            } // end of 'seed' section
+          
+          // 'predetermined mutations' section; expect six or eight entries, depending
+            // on whether or not a partial sweep is desired
+          else if(line.find("PREDETERMINED MUTATIONS") != string::npos)
+            { 
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // section or end of file
+                {
+                  if(line.length()>0) // if line is not empty
+                    {
+                      int good = 1;
+                      istringstream iss(line);
+                      iss >> sub; // time
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; }
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub; // id (of mutation type)
+                      if(sub.compare(0,1,"m") != 0)
+                        { good = 0; }
+                      sub.erase(0,1);
+                      if(sub.find_first_not_of("1234567890") != string::npos )
+                        { good = 0; }
+                      if(iss.eof()) { good = 0; }
+                      iss >> sub; // x (position)
+                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                        { good = 0; }
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub; // sub (population)
+                      if(sub.compare(0,1,"p") != 0)
+                        { good = 0; }
+                      sub.erase(0,1);
+                      if(sub.find_first_not_of("1234567890") != string::npos )
+                        { good = 0; }
+                      if(iss.eof()) { good = 0; }
+                      iss >> sub; // nAA (number of homozygotes)
+                      if(sub.find_first_not_of("1234567890") != string::npos )
+                        { good = 0; }
+                      if(iss.eof())
+                        { good = 0; }
+                      iss >> sub; // nAa (number of heterozygotes)
+                      if(sub.find_first_not_of("1234567890") != string::npos )
+                        { good = 0; }
+                      if(!iss.eof()) // expect two more entries (partial sweep)
+                        {
+                          iss >> sub;
+                          if(sub.find_first_not_of("P") != string::npos )
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // freq (frequency at which allele turns neutral)
+                          if(sub.find_first_not_of("1234567890.-e") != string::npos )
+                            { good = 0; }
+                        } // end of partial sweep subsection
+                      if(!iss.eof())
+                        { good = 0; }
+                      if(good == 0)
+                      { input_error(11,line); }
+                    } // end of if line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'predetermined mutations' section
+          else // id none of the intended settings applies
+            { input_error(-1,line); } // unknown parameter (section)
+        } // end of if this line starts a new parameter section; else: read next line
       else { get_line(infile,line); }
-    }
+    } // end of while not hitting end of file 'infile'; end of file 'infile' now reached
 
-  if(mutation_rate!=1) { input_error(1,string()); }
-  if(mutation_types<1) { input_error(2,string()); }
-  if(genomic_element_types<1) { input_error(3,string()); }
-  if(chromosome_organization<1) { input_error(4,string()); }
-  if(recombination_rate<1) { input_error(5,string()); }
-  if(generations<1) { input_error(6,string()); }
-  if(population<1) { input_error(-2,string()); }
-};
+  if(mutation_rate != 1)
+    { input_error(1,string()); }
+  if(mutation_types < 1)
+    { input_error(2,string()); }
+  if(genomic_element_types < 1)
+    { input_error(3,string()); }
+  if(chromosome_organization < 1)
+    { input_error(4,string()); }
+  if(recombination_rate < 1)
+    { input_error(5,string()); }
+  if(generations < 1)
+    { input_error(6,string()); }
+  if(population < 1)
+    { input_error(-2,string()); }
+}; // end of check_input_file()
 
 
 void initialize_from_file(population& P, const char* file, chromosome& chr)
