@@ -28,25 +28,29 @@
 // Modifications by Simon Aeschbacher, as compared to the original SLiM code (version 1.7):
 // 05/19/2014: Mutations are now introduced in linkage equilibrium, rather than in linkage
   // disequilibrium. This concerns the method introduce_mutation() of the class 'population'.
+  //
 // 08/19/2014: Changed from multiplicative to additive fitness interactions among loci. This
   // concerns the method W() of the class 'subpopulation'.
-// xx/xx/2014: Added the possibility to define habitat specific fitnesses. To this purpose, the
-  //class 'habitat' was introduced. Each subpopulation must be assigned a habitat. For each
-  // habitat the user specifies how the fitnesses parameters (selection and dominance
-  // coefficients) are to be modified relative to the reference habitat. The reference habitat is
-  // implicitly given by the initial description of the mutation types, and does not need to be
-  // redefined. There is also a new type of event, called "changing habitat", which allows
-  // assigning a habitat to any subpopulation. By default, any population assumes the reference
-  // habitat.
+  //
+// xx/xx/2014: Added the possibility to define environment specific fitnesses. To this purpose, the
+  // class 'environment' was introduced. Each subpopulation must be assigned a environment. For
+  // each environment the user specifies how the fitnesses parameters (selection and dominance
+  // coefficients) are to be modified relative to the reference environment. The reference
+  // environment is implicitly given by the initial description of the mutation types, and does not
+  // need to be redefined. There is also a new type of event, called "changing environment", which
+  // allows assigning a environment to any subpopulation. By default, any population assumes the
+  // reference environment.
+  //
 // xx/xx/2014: Introduced a switch that allows the user to choose whether predetermined mutations
   // introduced at a given point in time should initially be in linkage disequilibrium (as it was
   // originally the case in SLiM) or at linkage equilibrium (new). The switch is added as an
   // additional entry on each line in the #PREDETERMINED MUTATIONS section, before the optional
-  // parameter P <f>. The switch for initial linkage (dis)equilibrium is "le" for linkage
-  // equilibrium and "ld" for linkage disequilibrium.
+  // parameter P <f>. The switch for initial linkage (dis)equilibrium is "e" for linkage
+  // equilibrium and "d" for linkage disequilibrium.
   // Syntax:
   //          #PREDETERMINED MUTATIONS
   //          <time> <mut-type> <x> <pop> <nAA> <nAa> <linkage> [P <f>]
+  //
 // xx/xx/2014: Introduced a swith that allows the user to choose between multiplicative fitness
   // interactions between loci (as in the original SLiM) and additive fitness interactions (new).
   // This is a global setting, and has a new input section called #FITNESS INTERACTION that
@@ -55,6 +59,7 @@
   // Syntax:
   //          #FITNESS INTERACTION
   //          <interaction-type>
+  //
 // xx/xx/2014: Changed the mutation regime at non-neutral sites, such that at most two mutations of
   // a non-neutral type are permitted at such sites. There still is not back-mutation. Neutral
   // sites can accumulate more than one neutral mutation. However, as soon as a site is hit by
@@ -62,6 +67,7 @@
   // allowed. If, however, the non-neutral mutation at a given site is lost from the population,
   // the site will be considered as a neutral site again, and can accumulate at most one mutation
   // of a non-neutral type.
+  //
 // xx/xx/2014: Reformatted the code so that it follows more or less the GNU indent style, where it
   // did not do so before.
 
@@ -91,9 +97,10 @@ public:
   int   t; // mutation type identifier
   int   x; // position
   float s; // selection coefficient
-    // TODO: selection coefficients (and dominance coefficients) must become habitat-specific.
-    // Introduce class habitat, and then assign a habitat to each deme. Habitat assignments can
-    // change over time. Change s to be an array of length equal to the number of habitat types.
+    // TODO: selection coefficients (and dominance coefficients) must become environment-specific.
+    // Introduce class environment, and then assign a environment to each deme. environment
+    // assignments can change over time. Change s to be an array of length equal to the number of
+    // environment types.
 
   mutation(void) { ; }
 
@@ -115,7 +122,7 @@ bool operator< (const mutation &M1,const mutation &M2)
 bool operator== (const mutation &M1,const mutation &M2) //
 {
   return (M1.x == M2.x && M1.t == M2.t && M1.s == M2.s); // TODO: Adjust to account for the fact
-    // that s will be an array of doubles of length equal to the number of habitat types.
+    // that s will be an array of doubles of length equal to the number of environment types.
 };
 
 
@@ -132,7 +139,7 @@ class event
   // t F:          output list of all mutations that have become fixed so far
   // t A [file]:   output state of entire population [into file]
   // t T m:        follow trajectory of mutation m (specified by mutation type) from generation t on
-  // t H i h:      assign habitat h to subpopulation i at time t // TODO: Implement this.
+  // t E i e:      assign environment e to subpopulation i at time t // TODO: Implement this.
 
 public:
   
@@ -1676,7 +1683,7 @@ void input_error(int type, string line)
       cerr << "1 T m3" << endl << endl;
     }
 
-   else if(type==9) // initialization
+  else if(type==9) // initialization
     {
       cerr << "ERROR (parameter file): invalid initialization: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1687,7 +1694,7 @@ void input_error(int type, string line)
       cerr << "outfile" << endl << endl;
     }
 
-   else if(type==10) // seed
+  else if(type==10) // seed
     {
       cerr << "ERROR (parameter file): invalid seed: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1698,18 +1705,18 @@ void input_error(int type, string line)
       cerr << "141235" << endl << endl;
     }
 
-   else if(type==11) // predetermined mutation
+  else if(type==11) // predetermined mutation
     {
       cerr << "ERROR (parameter file): invalid predetermined mutations: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#PREDETERMINED MUTATIONS" << endl;
-      cerr << "<time> <mut-type> <x> <pop> <nAA> <nAa>" << endl << endl;
+      cerr << "<time> <mut-type> <x> <pop> <nAA> <nAa> <linkage> [P <f>]" << endl << endl;
       cerr << "Example:" << endl << endl;
       cerr << "#PREDETERMINED MUTATIONS" << endl;
-      cerr << "5000 m7 45000 p1 0 1" << endl << endl;
+      cerr << "5000 m7 45000 p1 0 1 e" << endl << endl;
     }
 
-   else if(type==12) // gene conversion
+  else if(type==12) // gene conversion
     {
       cerr << "ERROR (parameter file): invalid gene conversion: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1720,6 +1727,17 @@ void input_error(int type, string line)
       cerr << "0.5 20" << endl << endl;
     }
 
+  else if(type == 13) // fitness interaction
+    {
+      cerr << "ERROR (parameter file): invalid fitness interaction: " << line << endl << endl;
+      cerr << "Required syntax:" << endl << endl;
+      cerr << "#FITNESS INTERACTION" << endl;
+      cerr << "<interaction-type>" << endl << endl;
+      cerr << "Example:" << endl << endl;
+      cerr << "#FITNESS INTERACTION" << endl;
+      cerr << "a" << endl << endl;
+    } // end of fitness interaction
+
   exit(1);
 };
 
@@ -1728,6 +1746,7 @@ void check_input_file(char* file)
 {
   int mutation_types = 0;
   int mutation_rate  = 0;
+  int interaction_type = 0; // added in SLaM v. 1.0
   int genomic_element_types = 0;
   int chromosome_organization = 0;
   int recombination_rate = 0;
@@ -1754,18 +1773,36 @@ void check_input_file(char* file)
           if(line.find("MUTATION RATE") != string::npos)
             {
               get_line(infile,line);
-            while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
               // section or end of file
-              {
-                if(line.length()>0) // if line is not empty
-                  {
-                    if(line.find_first_not_of("1234567890.e-") != string::npos)
-                      {  input_error(1,line);  }
-                    else
-                      {  mutation_rate++;  } // mutation_rate now 1
-                  } // end of if line is not empty
-                get_line(infile,line);
-              } // end of while not hitting next section or end of file
+                {
+                  if(line.length()>0) // if line is not empty
+                    {
+                      if(line.find_first_not_of("1234567890.e-") != string::npos)
+                        {  input_error(1,line);  }
+                      else
+                        {  mutation_rate++;  } // mutation_rate now 1
+                    } // end of if line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
+            } // end of 'mutation rate' section
+
+          // 'fitness interaction' section
+          if(line.find("FITNESS INTERACTION") != string::npos)
+            {
+              get_line(infile,line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                                                                     // section or end of file
+                {
+                  if(line.length()>0) // if line is not empty
+                    {
+                      if(line.find_first_not_of("am") != string::npos)
+                        {  input_error(13,line);  }
+                      else
+                        {  fitness_type++;  } // fitness_type now 1
+                    } // end of if line is not empty
+                  get_line(infile,line);
+                } // end of while not hitting next section or end of file
             } // end of 'mutation rate' section
 
           // 'mutation types' section
@@ -1825,6 +1862,8 @@ void check_input_file(char* file)
                 } // end of while not hitting next section
             } // end of mutation types section
         
+          // GO ON HERE: Add 'environment' section
+
           // 'genomic element types' section
           else if(line.find("GENOMIC ELEMENT TYPES") != string::npos)
             {
@@ -2229,7 +2268,7 @@ void check_input_file(char* file)
                 } // end of if line is not empty
             } // end of 'seed' section
           
-          // 'predetermined mutations' section; expect six or eight entries, depending
+          // 'predetermined mutations' section; expect seven or nine entries, depending
             // on whether or not a partial sweep is desired
           else if(line.find("PREDETERMINED MUTATIONS") != string::npos)
             { 
@@ -2273,6 +2312,9 @@ void check_input_file(char* file)
                       iss >> sub; // nAa (number of heterozygotes)
                       if(sub.find_first_not_of("1234567890") != string::npos )
                         { good = 0; }
+                      iss >> sub; // linkage
+                      if(sub.find_first_not_of("de") != string::npos)
+                        { good = 0; }
                       if(!iss.eof()) // expect two more entries (partial sweep)
                         {
                           iss >> sub;
@@ -2292,7 +2334,7 @@ void check_input_file(char* file)
                   get_line(infile,line);
                 } // end of while not hitting next section or end of file
             } // end of 'predetermined mutations' section
-          else // id none of the intended settings applies
+          else // if none of the intended settings applies
             { input_error(-1,line); } // unknown parameter (section)
         } // end of if this line starts a new parameter section; else: read next line
       else { get_line(infile,line); }
