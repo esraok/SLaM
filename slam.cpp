@@ -40,6 +40,10 @@
   // need to be redefined. There is also a new type of event, called "changing environment", which
   // allows assigning a environment to any subpopulation. By default, any population assumes the
   // reference environment.
+  // Syntax for input spec:
+  //          #ENVIRONMENTS
+  //          <environment-id> <mutation-type-id> <h-modif> <s-modif> [<mutation-type-id>
+  //          <h-modif> <s-modif> ...]
   //
 // xx/xx/2014: Introduced a switch that allows the user to choose whether predetermined mutations
   // introduced at a given point in time should initially be in linkage disequilibrium (as it was
@@ -1664,7 +1668,9 @@ void input_error(int type, string line)
       cerr << "1000 P p2 100 p1" << endl;
       cerr << "1000 S p2 0.05" << endl;
       cerr << "2000 N p1 1e4" << endl;
-      cerr << "2000 M p2 p1 0.01" << endl << endl;
+      cerr << "2000 M p2 p1 0.01" << endl;
+      cerr << "4000 E p1 e1" << endl;
+      cerr << "4000 E p2 e2" << endl << endl;
     }
 
   else if(type==8) // output
@@ -1862,9 +1868,26 @@ void check_input_file(char* file)
                 } // end of while not hitting next section
             } // end of mutation types section
         
-          // GO ON HERE: Add 'environment' section
+          // GO ON HERE: Add 'environments' section
+          // 'environments' section
+          else if(line.find("ENVIRONMENTS") != string::npos)
+            {
+              get_line(infile, line);
+              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // section or end of file
+                {
+                  if(line.length() > 0) // line is not empty
+                    {
+                      int good == 1;
+                      istringstream iss(line);
+                      iss >> sub;
+                      if(
 
-          // 'genomic element types' section
+                    } // end of if line is not empty
+                } // end of while not hitting next section or end of file
+            } // end of environments section
+
+          // 'genomic element types' section (only testing for presence and correctness of
           else if(line.find("GENOMIC ELEMENT TYPES") != string::npos)
             {
               get_line(infile,line);
@@ -1877,12 +1900,12 @@ void check_input_file(char* file)
                       istringstream iss(line); iss >> sub;
                       if(sub.compare(0,1,"g") != 0)
                         { good = 0; }
-                      sub.erase(0,1);
+                      sub.erase(0,1); // id
                       if(sub.find_first_not_of("1234567890") != string::npos )
-                        { good = 0; } // id
+                        { good = 0; }
                       if(iss.eof())
                         { good = 0; }
-                      while(!iss.eof())
+                      while(!iss.eof()) // while end of file of line not reached
                         {
                           iss >> sub;
                           if(sub.compare(0,1,"m") != 0)
@@ -1895,10 +1918,11 @@ void check_input_file(char* file)
                           iss >> sub;
                           if(sub.find_first_not_of("1234567890e.") != string::npos )
                             { good = 0; } // fraction
-                        } // end of while not hit end of file
+                        } // end of while not hit end of file (i.e. end of current line)
                       if(good == 0)
                         { input_error(3,line); }
-                      else { genomic_element_types++; } // increase counter
+                      else
+                        { genomic_element_types++; } // increase counter
                     } // end of if line is not emtpy
                   get_line(infile,line);
                 } // end of while not hitting next section
@@ -2032,13 +2056,13 @@ void check_input_file(char* file)
                     {
                       int good = 1;
                       istringstream iss(line);
-                      iss >> sub;
+                      iss >> sub; // t(ime)
                       if(sub.find_first_not_of("1234567890e") != string::npos )
-                        { good = 0; } // t(ime)
+                        { good = 0; }
                       if(iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("PSMN") != string::npos )
+                      if(sub.find_first_not_of("PSMNE") != string::npos )
                         { good = 0; } // event type
                     
                       if(sub.compare("P") == 0) // adding a new population; expect two or three
@@ -2137,7 +2161,30 @@ void check_input_file(char* file)
                           if(!iss.eof())
                             { good = 0; }
                         } // end of changing migration rate
-		  
+
+                      if(sub.compare("E") == 0) // changing environment; time, "E", population id
+                        // and environment id
+                        {
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // p(opulation id)
+                          if(sub.compare(0, 1, "p") != 0)
+                            { good = 0; }
+                          sub.erase(0, 1);
+                          if(sub.find_first_not_of("1234567890") != string::npos)
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // e(nvironment id)
+                          if(sub.compare(0, 1, "e") != 0)
+                            { good = 0; }
+                          sub.erase(0, 1);
+                          if(sub.find_first_not_of("1234567890") != string::npos )
+                            { good = 0; }
+                          if(!iss.eof())
+                            { good = 0; }
+                        } // end of changing environment
+
                       if(good == 0)
                         { input_error(7,line); }
                     } // end of if line is not emtpy
