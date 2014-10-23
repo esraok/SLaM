@@ -8,11 +8,11 @@
 //
 // compile by:
 //
-// g++ -fast ./slim.cpp -lgsl -lgslcblas -o slim // iMac
-// g++ -O3   ./slim.cpp -lgsl -lgslcblas -o slim // Linux
+// g++ -fast ./slam.cpp -lgsl -lgslcblas -o slam // iMac
+// g++ -O3   ./slam.cpp -lgsl -lgslcblas -o slam // Linux
 //
-// If you need to specify the path to the gsl library and include path explicitly, use:
-// g++ -fast ./slim.cpp -L/usr/local/lib -I/usr/local/include -lgsl -lgslcblas -o slim
+// You may need to specify the path to the gsl library and include path explicitly. If so, use:
+// g++ -fast ./slam.cpp -L/usr/local/lib -I/usr/local/include -lgsl -lgslcblas -o slam
 // Mac mini
 //
 // This program is free software: you can redistribute it and/or modify
@@ -102,7 +102,7 @@ public:
   int   x; // position
   float s; // selection coefficient
     // TODO: selection coefficients (and dominance coefficients) must become environment-specific.
-    // Introduce class environment, and then assign a environment to each deme. environment
+    // Introduce class 'environment', and then assign a environment to each deme. environment
     // assignments can change over time. Change s to be an array of length equal to the number of
     // environment types.
 
@@ -138,11 +138,13 @@ class event
   // t N i n:      set size of subpopulation i to n
   // t M i j x:    set fraction x of subpopulation i that originates as migrants from j
   // t S i s;      set selfing fraction of subpopulation i to s
+  // t E i e;      assigne environment e to subpopulation i
   //
   // t R i n:      output sample of n randomly drawn genomes from subpopulation i
   // t F:          output list of all mutations that have become fixed so far
   // t A [file]:   output state of entire population [into file]
-  // t T m:        follow trajectory of mutation m (specified by mutation type) from generation t on
+  // t T m:        follow trajectory of mutation m (specified by mutation type) from generation t
+  //               on
   // t E i e:      assign environment e to subpopulation i at time t // TODO: Implement this.
 
 public:
@@ -152,20 +154,21 @@ public:
   int np;           // number of parameters
 
   event(char T, vector<string> S)
-  {
-    t = T;
-    s = S;
-    np = s.size();
+    {
+      t = T;
+      s = S;
+      np = s.size();
 
-    string options = "PNMSRFAT";
-    if(options.find(t)==string::npos) 
-      { 
-	cerr << "ERROR (initialize): invalid event type \"" << t;
-	for(int i=0; i<np; i++) { cerr << " " << s[i]; }
-	cerr << "\"" << endl;
-	exit(1); 
-      }
-  }  
+      string options = "PNMSERFAT";
+      if(options.find(t) == string::npos)
+        {
+          cerr << "ERROR (initialize): invalid event type \"" << t;
+          for(int i = 0; i < np; i++)
+            { cerr << " " << s[i]; }
+          cerr << "\"" << endl;
+          exit(1);
+        }
+    }
 };
 
 
@@ -811,7 +814,7 @@ public:
 
     if(type == 'P') // add subpopulation
       { 
-	if(E.np==2) // empty subpopulation
+	if(E.np == 2) // empty subpopulation
 	  { 
 	    string sub = E.s[0]; sub.erase(0,1);
 
@@ -820,7 +823,7 @@ public:
 	    add_subpopulation(i,n);
 	  }
 	      
-	if(E.np==3) // drawn from source population
+	if(E.np == 3) // drawn from source population
 	  {
 	    string sub1 = E.s[0]; sub1.erase(0,1);
 	    string sub2 = E.s[2]; sub2.erase(0,1);
@@ -866,12 +869,12 @@ public:
 
     if(type == 'A') // output state of entire population
       {
-	if(E.s.size()==0) 
+	if(E.s.size() == 0)
 	  {
 	    cout << "#OUT: " << g << " A" << endl;
 	    print_all(chr); 
 	  }	
-	if(E.s.size()==1)
+	if(E.s.size() == 1)
 	  {
 	    ofstream outfile;
 	    outfile.open (E.s[0].c_str());
@@ -1758,6 +1761,7 @@ void check_input_file(char* file)
   int recombination_rate = 0;
   int generations = 0;
   int population = 0;
+  int fitness_type = 0;
 
   ifstream infile (file);
   // check if parameter file can be opened
@@ -1870,6 +1874,7 @@ void check_input_file(char* file)
         
           // GO ON HERE: Add 'environments' section
           // 'environments' section
+
           else if(line.find("ENVIRONMENTS") != string::npos)
             {
               get_line(infile, line);
@@ -1886,7 +1891,7 @@ void check_input_file(char* file)
                     } // end of if line is not empty
                 } // end of while not hitting next section or end of file
             } // end of environments section
-
+           
           // 'genomic element types' section (only testing for presence and correctness of
           else if(line.find("GENOMIC ELEMENT TYPES") != string::npos)
             {
@@ -2730,7 +2735,7 @@ int main(int argc,char *argv[])
   P.parameters.push_back("#INPUT PARAMETER FILE");
   P.parameters.push_back(input_file);
 
-  // demographic and structure events
+  // demography and structure events
 
   multimap<int,event> E; 
   multimap<int,event>::iterator itE;

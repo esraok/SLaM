@@ -1,0 +1,32 @@
+/ simple neutral simulation
+/ modified from input_example_1.txt to reach shorter computation time
+
+#MUTATION TYPES  
+m1 0.5 f 0.0 / neutral
+
+#MUTATION RATE 
+1e-7 
+
+#GENOMIC ELEMENT TYPES 
+g1 m1 1.0 / only one type comprising the neutral mutations
+
+#CHROMOSOME ORGANIZATION 
+g1 1 100000 / uniform chromosome of length 100 kb
+
+#RECOMBINATION RATE 
+100000 1e-8
+
+#GENERATIONS 
+1000
+
+#DEMOGRAPHY AND STRUCTURE 
+1 P p1 100 / one population of 500 individuals
+100 E p1 e3
+
+#OUTPUT 
+200 R p1 10 / output sample of 10 genomes
+400 R p1 10
+600 R p1 10
+800 R p1 10
+1000 R p1 10
+1000 F / output fixed mutations
