@@ -2910,8 +2910,9 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
       else
         {
           get_line(infile, line);
-          cout << "getting new line:" << endl;
-          cout << line << endl << endl;
+          cout << "getting new line:" << endl; // test
+          // TODO: GO ON HERE, testing error (endles loop)
+          cout << line << endl;
         }
     // TODO: Introduce a check for the presence of lines that start with # and have not been
       // handled as intended.
