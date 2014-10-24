@@ -42,8 +42,8 @@
   // reference environment.
   // Syntax for input spec:
   //          #ENVIRONMENTS
-  //          <environment-id> <mutation-type-id> <h-modif> <s-modif> [<mutation-type-id>
-  //          <h-modif> <s-modif> ...]
+  //          <environment-id> <mut-type> <h> <s-modif> [<mut-type>
+  //          <h> <s-modif> ...]
   //
 // xx/xx/2014: Introduced a switch that allows the user to choose whether predetermined mutations
   // introduced at a given point in time should initially be in linkage disequilibrium (as it was
@@ -53,7 +53,7 @@
   // equilibrium and "d" for linkage disequilibrium.
   // Syntax:
   //          #PREDETERMINED MUTATIONS
-  //          <time> <mut-type> <x> <pop> <nAA> <nAa> <linkage> [P <f>]
+  //          <time> <mut-type> <x> <pop-id> <nAA> <nAa> <linkage> [P <f>]
   //
 // xx/xx/2014: Introduced a swith that allows the user to choose between multiplicative fitness
   // interactions between loci (as in the original SLiM) and additive fitness interactions (new).
@@ -137,15 +137,14 @@ class event
   // t P i n [j]:  add subpopulation i of size n [drawn from j]
   // t N i n:      set size of subpopulation i to n
   // t M i j x:    set fraction x of subpopulation i that originates as migrants from j
-  // t S i s;      set selfing fraction of subpopulation i to s
-  // t E i e;      assigne environment e to subpopulation i
+  // t S i s:      set selfing fraction of subpopulation i to s
+  // t E i e:      assign environment e to subpopulation i at time t // TODO: Implement this.
   //
   // t R i n:      output sample of n randomly drawn genomes from subpopulation i
   // t F:          output list of all mutations that have become fixed so far
   // t A [file]:   output state of entire population [into file]
   // t T m:        follow trajectory of mutation m (specified by mutation type) from generation t
   //               on
-  // t E i e:      assign environment e to subpopulation i at time t // TODO: Implement this.
 
 public:
   
@@ -160,10 +159,10 @@ public:
       np = s.size();
 
       string options = "PNMSERFAT";
-      if(options.find(t) == string::npos)
+      if (options.find(t) == string::npos)
         {
           cerr << "ERROR (initialize): invalid event type \"" << t;
-          for(int i = 0; i < np; i++)
+          for (int i = 0; i < np; i++)
             { cerr << " " << s[i]; }
           cerr << "\"" << endl;
           exit(1);
@@ -198,8 +197,8 @@ public:
 
     string s = "fge";
 
-    if(s.find(d)==string::npos)  { cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1); }
-    if(p.size()==0)              { cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1); }
+    if (s.find(d)==string::npos)  { cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1); }
+    if (p.size()==0)              { cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1); }
   }
 
   float draw_s()
@@ -249,8 +248,8 @@ public:
     m = M;
     g = G;  
 
-    if(m.size() != g.size()) { exit(1); }
-    double A[m.size()]; for(int i=0; i<m.size(); i++) { A[i] = g[i]; }
+    if (m.size() != g.size()) { exit(1); }
+    double A[m.size()]; for (int i=0; i<m.size(); i++) { A[i] = g[i]; }
     LT = gsl_ran_discrete_preproc(G.size(),A);
   }
 
@@ -273,8 +272,8 @@ public:
 
   map<int,mutation_type>        mutation_types;
   map<int,genomic_element_type> genomic_element_types;
-  vector<int>                   rec_x;
-  vector<double>                rec_r;
+  vector<int>                   rec_x; // vector of end points of strata of a given recomb. rate
+  vector<double>                rec_r; // vector of recombination rates for each stratum
 
   int    L;   // length of chromosome
   double M;   // overall mutation rate
@@ -284,15 +283,15 @@ public:
 
   void initialize_rng()
   {
-    if(size() == 0)       { cerr << "ERROR (initialize): empty chromosome" << endl; exit(1); }
-    if(rec_r.size() == 0) { cerr << "ERROR (initialize): recombination rate not specified" << endl; exit(1); }
-    if(!(M>=0))           { cerr << "ERROR (initialize): invalid mutation rate" << endl; exit(1); }
+    if (size() == 0)       { cerr << "ERROR (initialize): empty chromosome" << endl; exit(1); }
+    if (rec_r.size() == 0) { cerr << "ERROR (initialize): recombination rate not specified" << endl; exit(1); }
+    if (!(M>=0))           { cerr << "ERROR (initialize): invalid mutation rate" << endl; exit(1); }
 
     L = 0;
 
-    for(int i=0; i<size(); i++)
+    for (int i=0; i<size(); i++)
       {
-	if(genomic_element_types.count(operator[](i).i)==0)
+	if (genomic_element_types.count(operator[](i).i)==0)
 	  { 
 	    cerr << "ERROR (initialize): genomic element type " << operator[](i).i << " not defined" << endl; exit(1); 
 	  }
@@ -300,9 +299,9 @@ public:
 
     for (map<int,genomic_element_type>::iterator it = genomic_element_types.begin(); it!=genomic_element_types.end(); it++)
       {
-	for(int j=0; j<it->second.m.size(); j++)
+	for (int j=0; j<it->second.m.size(); j++)
 	  {
-	    if(mutation_types.count(it->second.m[j]) == 0)
+	    if (mutation_types.count(it->second.m[j]) == 0)
 	      {
 	        cerr << "ERROR (initialize): mutation type " << it->second.m[j] << " not defined" << endl; exit(1); 
 	      }
@@ -310,9 +309,9 @@ public:
       }  
 
     double A[size()]; int l = 0;
-    for(int i=0; i<size(); i++) 
+    for (int i=0; i<size(); i++) 
       { 
-	if(operator[](i).e > L) { L = operator[](i).e; }
+	if (operator[](i).e > L) { L = operator[](i).e; }
 	int l_i = operator[](i).e - operator[](i).s + 1.0; 
 	A[i] = (double)l_i; l += l_i;
       }
@@ -320,10 +319,10 @@ public:
 
     double B[rec_r.size()];
     B[0] = rec_r[0]*(double)rec_x[0]; R += B[0];
-    for(int i=1; i<rec_r.size(); i++) 
+    for (int i=1; i<rec_r.size(); i++) 
       { 
 	B[i] = rec_r[i]*(double)(rec_x[i]-rec_x[i-1]); R+= B[i];
-	if(rec_x[i]>L) { L = rec_x[i]; }
+	if (rec_x[i]>L) { L = rec_x[i]; }
       }
     LT_R = gsl_ran_discrete_preproc(rec_r.size(),B);
   }
@@ -354,17 +353,17 @@ public:
 
     int nr = gsl_ran_poisson(rng,R);
 
-    for(int i=0; i<nr; i++)
+    for (int i=0; i<nr; i++)
       {
 	int x = 0;
 	int j = gsl_ran_discrete(rng,LT_R);
 
-	if(j==0) { x = gsl_rng_uniform_int(rng,rec_x[j]); }
+	if (j==0) { x = gsl_rng_uniform_int(rng,rec_x[j]); }
 	else     { x = rec_x[j-1] + gsl_rng_uniform_int(rng,rec_x[j]-rec_x[j-1]); }
 
 	r.push_back(x);
 
-	if(gsl_rng_uniform(rng)<G_f) // recombination results in gene conversion 
+	if (gsl_rng_uniform(rng)<G_f) // recombination results in gene conversion 
 	  {
 	    int x2 = x+gsl_ran_geometric(rng,1.0/G_l);
 	    r.push_back(x2);
@@ -438,23 +437,27 @@ public:
 };
 
 
-class introduced_mutation : public mutation
+class introduced_mutation : public mutation // inheriting from mutation
 {
 public:
 
   int i;   // subpopulation into which mutation is to be introduced
   int nAA; // number of homozygotes
   int nAa; // number of heterozygotes
-    
-  introduced_mutation(int T, int X, int I, int NAA, int NAa)
+  char l;  // linkage flag ('e' for linkage equilibrium, 'd' for linkage disequilibrium
+
+  // constructor
+  introduced_mutation(int T, int X, int I, int NAA, int NAa, char L)
   {
     t = T; // mutation type
     x = X; // genomic position
-    i = I;
-    nAA = NAA;
-    nAa = NAa;
+    i = I; // subpopulation where introduced
+    nAA = NAA; // number of homozygous carriers
+    nAa = NAa; // number of heterozygous carriers
+    l = L; // linkage flag
+
   }
-};
+}; // end of class introduced_mutation
 
 
 class partial_sweep
@@ -486,30 +489,30 @@ genome fixed(genome& G1, genome& G2)
   vector<mutation>::iterator g1_max = G1.end();
   vector<mutation>::iterator g2_max = G2.end();
   
-  while(g1 != g1_max && g2 != g2_max)
+  while (g1 != g1_max && g2 != g2_max)
       {
 	// advance g1 while g1.x < g2.x
 
-	while(g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x) { g1++; }
+	while (g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x) { g1++; }
 
 	// advance g2 while g1.x < g2.x
 
-	while(g1 != g1_max && g2 != g2_max && (*g2).x < (*g1).x) { g2++; }
+	while (g1 != g1_max && g2 != g2_max && (*g2).x < (*g1).x) { g2++; }
 	   
 	// identify shared mutations at positions x and add to G
 
-	if(g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
+	if (g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
 	  {
 	    int x = (*g1).x;
 
 	    vector<mutation>::iterator temp;
 
-	    while(g1 != g1_max && (*g1).x == x)
+	    while (g1 != g1_max && (*g1).x == x)
 	      {
 		temp = g2;
-		while(temp != g2_max && (*temp).x == x)
+		while (temp != g2_max && (*temp).x == x)
 		  {
-		    if((*temp).t==(*g1).t && (*temp).s==(*g1).s) { G.push_back(*g1); }
+		    if ((*temp).t==(*g1).t && (*temp).s==(*g1).s) { G.push_back(*g1); }
 		    temp++;
 		  }
 		g1++;
@@ -533,19 +536,19 @@ genome polymorphic(genome& G1, genome& G2)
   vector<mutation>::iterator g1_max = G1.end();
   vector<mutation>::iterator g2_max = G2.end();
   
-  while(g1 != g1_max && g2 != g2_max)
+  while (g1 != g1_max && g2 != g2_max)
       {
 	// advance g1 while g1.x < g2.x
 
-	while(g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x) { G.push_back(*g1); g1++; }
+	while (g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x) { G.push_back(*g1); g1++; }
 
 	// advance g2 while g1.x < g2.x
 
-	while(g2 != g2_max && g1 != g1_max && (*g2).x < (*g1).x) { g2++; }
+	while (g2 != g2_max && g1 != g1_max && (*g2).x < (*g1).x) { g2++; }
 	   
 	// identify polymorphic mutations at positions x and add to G
 
-	if(g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
+	if (g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
 	  {
 	    int x = (*g1).x;
 
@@ -553,24 +556,24 @@ genome polymorphic(genome& G1, genome& G2)
 
 	    vector<mutation>::iterator temp = g2;
 
-	    while(g1 != g1_max && (*g1).x == x)
+	    while (g1 != g1_max && (*g1).x == x)
 	      {
 		bool poly = 1;
 
-		while(temp != g2_max && (*temp).x == x)
+		while (temp != g2_max && (*temp).x == x)
 		  {
-		    if((*g1).t==(*temp).t && (*g1).s==(*temp).s) { poly = 0; }
+		    if ((*g1).t==(*temp).t && (*g1).s==(*temp).s) { poly = 0; }
 		    temp++;
 		  }
-		if(poly == 1) { G.push_back(*g1); }
+		if (poly == 1) { G.push_back(*g1); }
 		g1++;
 	      }
 
-	    while(g2 != g2_max && (*g2).x == x) { g2++; }
+	    while (g2 != g2_max && (*g2).x == x) { g2++; }
 	  }
       }
 
-  while(g1 != g1_max) { G.push_back(*g1); g1++; }
+  while (g1 != g1_max) { G.push_back(*g1); g1++; }
 
   return G;
 }
@@ -601,7 +604,7 @@ public:
     N = n;
     S = 0.0;
     G_parent.resize(2*N); G_child.resize(2*N);
-    double A[N]; for(int i=0; i<N; i++) { A[i] = 1.0; }
+    double A[N]; for (int i=0; i<N; i++) { A[i] = 1.0; }
     LT = gsl_ran_discrete_preproc(N,A);
   }
 
@@ -614,7 +617,7 @@ public:
     // calculate fitnesses in parent population and create new lookup table
     
     gsl_ran_discrete_free(LT);
-    double A[(int)(G_parent.size()/2)]; for(int i=0; i<(int)(G_parent.size()/2); i++) { A[i] = W(2*i,2*i+1,chr); }
+    double A[(int)(G_parent.size()/2)]; for (int i=0; i<(int)(G_parent.size()/2); i++) { A[i] = W(2*i,2*i+1,chr); }
     LT = gsl_ran_discrete_preproc((int)(G_parent.size()/2),A);
   }
 
@@ -632,31 +635,31 @@ public:
     vector<mutation>::iterator pi_max = G_parent[i].end();
     vector<mutation>::iterator pj_max = G_parent[j].end();
 
-    while(w>0 && (pi != pi_max || pj != pj_max))
+    while (w>0 && (pi != pi_max || pj != pj_max))
       {
 	// advance i while pi.x < pj.x
 
-	while(pi != pi_max && (pj == pj_max || (*pi).x < (*pj).x))
+	while (pi != pi_max && (pj == pj_max || (*pi).x < (*pj).x))
 	  {
           // changed by SA: additive instead of mulitplicative fitness interaction
-          // if((*pi).s != 0) { w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s); }
-          if((*pi).s != 0) { w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s; }
+          // if ((*pi).s != 0) { w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s); }
+          if ((*pi).s != 0) { w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s; }
           pi++;
 	  }
 	   
 	// advance j while pj.x < pi.x
 
-	while(pj != pj_max && (pi == pi_max || (*pj).x < (*pi).x))
+	while (pj != pj_max && (pi == pi_max || (*pj).x < (*pi).x))
 	  {
           // changed by SA: additive instead of mulitplicative fitness interaction
-          // if((*pj).s != 0) { w = w*(1.0+chr.mutation_types.find((*pj).t)->second.h*(*pj).s); }
-          if((*pj).s != 0) { w = w+chr.mutation_types.find((*pj).t)->second.h*(*pj).s; }
+          // if ((*pj).s != 0) { w = w*(1.0+chr.mutation_types.find((*pj).t)->second.h*(*pj).s); }
+          if ((*pj).s != 0) { w = w+chr.mutation_types.find((*pj).t)->second.h*(*pj).s; }
           pj++;
 	  }
 	
 	// check for homozygotes and heterozygotes at x
 
-	if(pi != pi_max && pj != pj_max && (*pj).x == (*pi).x)
+	if (pi != pi_max && pj != pj_max && (*pj).x == (*pi).x)
 	  {
 	    int x = (*pi).x; 
 	   
@@ -664,16 +667,16 @@ public:
 
 	    // advance through pi
 
-	    while(pi != pi_max && (*pi).x == x)
+	    while (pi != pi_max && (*pi).x == x)
 	      {
-		if((*pi).s != 0.0)
+		if ((*pi).s != 0.0)
 		  {
 		    vector<mutation>::iterator temp_j = pj; 
 		    bool homo = 0;
 
-		    while(homo == 0 && temp_j != pj_max && (*temp_j).x == x)
+		    while (homo == 0 && temp_j != pj_max && (*temp_j).x == x)
 		      {
-			if((*pi).t == (*temp_j).t && (*pi).s == (*temp_j).s) 
+			if ((*pi).t == (*temp_j).t && (*pi).s == (*temp_j).s) 
 			  { 
                   // changed by SA: additive instead of mulitplicative fitness interaction
                   // w = w*(1.0+(*pi).s); homo = 1;
@@ -682,36 +685,36 @@ public:
 			temp_j++;
 		      }
               // changed by SA: additive instead of mulitplicative fitness interaction
-              // if(homo == 0) { w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s); }
-              if(homo == 0) { w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s; }
+              // if (homo == 0) { w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s); }
+              if (homo == 0) { w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s; }
 		  }
 		pi++;
 	      }
 
 	    // advance through pj
 
-	    while(pj != pj_max && (*pj).x == x)
+	    while (pj != pj_max && (*pj).x == x)
 	      {
-		if((*pj).s != 0.0)
+		if ((*pj).s != 0.0)
 		  {
 		    vector<mutation>::iterator temp_i = pi_start; 
 		    bool homo = 0;
 
-		    while(homo == 0 && temp_i != pi_max && (*temp_i).x == x)
+		    while (homo == 0 && temp_i != pi_max && (*temp_i).x == x)
 		      {
-			if((*pj).t == (*temp_i).t && (*pj).s == (*temp_i).s) { homo = 1; }
+			if ((*pj).t == (*temp_i).t && (*pj).s == (*temp_i).s) { homo = 1; }
 			temp_i++;
 		      }
               // changed by SA: additive instead of mulitplicative fitness interaction
-              // if(homo == 0) { w = w*(1.0+chr.mutation_types.find((*pj).t)->second.h*(*pj).s); }
-              if(homo == 0) { w = w+chr.mutation_types.find((*pj).t)->second.h*(*pj).s; }
+              // if (homo == 0) { w = w*(1.0+chr.mutation_types.find((*pj).t)->second.h*(*pj).s); }
+              if (homo == 0) { w = w+chr.mutation_types.find((*pj).t)->second.h*(*pj).s; }
 		  }
 		pj++;
 	      }
 	  }
       }
 
-    if(w<0) { w = 0.0; }
+    if (w<0) { w = 0.0; }
 
     return w;
   }
@@ -724,7 +727,7 @@ public:
 };
 
 
-class population : public map<int,subpopulation>
+class population : public map<int, subpopulation>
 {
   // the population is a map of subpopulations
 
@@ -737,27 +740,35 @@ public:
   vector<string> parameters;
 
   void add_subpopulation(int i, unsigned int N) 
-  { 
-    // add new empty subpopulation i of size N
+  {
+    // add new empty subpopulation i of size N (i is the key of the subpopulation)
 
-    if(count(i)!=0) { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " already exists" << endl; exit(1); }
-    if(N<1)         { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl; exit(1); }
+    if (count(i) != 0) // counts number of occurrences of subpopulation with key equal to i
+      {
+        cerr << "ERROR (add subpopulation): subpopulation p" << i << " already exists" << endl;
+        exit(1);
+      }
+    if (N < 1)
+      {
+        cerr << "ERROR (add subpopulation): subpopulation p" << i << " empty" << endl;
+        exit(1);
+      }
 
-    insert(pair<int,subpopulation>(i,subpopulation(N))); 
-  }
+    insert(pair<int, subpopulation>(i, subpopulation(N)));
+  } // end of add_subpopulation() method
 
 
   void add_subpopulation(int i, int j, unsigned int N) 
   { 
     // add new subpopulation i of size N individuals drawn from source subpopulation j
 
-    if(count(i)!=0) { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " already exists" << endl; exit(1); }
-    if(count(j)==0) { cerr << "ERROR (add subpopulation): source subpopulation p"<< j << " does not exists" << endl; exit(1); }
-    if(N<1)         { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl; exit(1); }
+    if (count(i)!=0) { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " already exists" << endl; exit(1); }
+    if (count(j)==0) { cerr << "ERROR (add subpopulation): source subpopulation p"<< j << " does not exists" << endl; exit(1); }
+    if (N<1)         { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl; exit(1); }
 
     insert(pair<int,subpopulation>(i,subpopulation(N))); 
 
-    for(int p=0; p<find(i)->second.N; p++)
+    for (int p=0; p<find(i)->second.N; p++)
       {
 	// draw individual from subpopulation j and assign to be a parent in i  
 
@@ -773,12 +784,12 @@ public:
   {
     // set size of subpopulation i to N
 
-    if(count(i)==0) { cerr << "ERROR (change size): no subpopulation p"<< i << endl; exit(1); }
+    if (count(i)==0) { cerr << "ERROR (change size): no subpopulation p"<< i << endl; exit(1); }
 
-    if(N==0) // remove subpopulation i 
+    if (N==0) // remove subpopulation i 
       {
 	erase(i); 
-	for(it = begin(); it != end(); it++) { it->second.m.erase(i); } 
+	for (it = begin(); it != end(); it++) { it->second.m.erase(i); } 
       }
     else { find(i)->second.N = N; find(i)->second.G_child.resize(2*N); }
   }
@@ -787,8 +798,8 @@ public:
   { 
     // set fraction s of i that reproduces by selfing
  
-    if(count(i)==0)    { cerr << "ERROR (set selfing): no subpopulation p"<< i << endl; exit(1); }
-    if(s<0.0 || s>1.0) { cerr << "ERROR (set selfing): selfing fraction has to be within [0,1]" << endl; exit(1); }
+    if (count(i)==0)    { cerr << "ERROR (set selfing): no subpopulation p"<< i << endl; exit(1); }
+    if (s<0.0 || s>1.0) { cerr << "ERROR (set selfing): selfing fraction has to be within [0,1]" << endl; exit(1); }
 
     find(i)->second.S = s; 
   }
@@ -798,11 +809,11 @@ public:
   { 
     // set fraction m of i that originates as migrants from j per generation  
 
-    if(count(i)==0)    { cerr << "ERROR (set migration): no subpopulation p"<< i << endl; exit(1); }
-    if(count(j)==0)    { cerr << "ERROR (set migration): no subpopulation p"<< j << endl; exit(1); }
-    if(m<0.0 || m>1.0) { cerr << "ERROR (set migration): migration fraction has to be within [0,1]" << endl; exit(1); }
+    if (count(i)==0)    { cerr << "ERROR (set migration): no subpopulation p"<< i << endl; exit(1); }
+    if (count(j)==0)    { cerr << "ERROR (set migration): no subpopulation p"<< j << endl; exit(1); }
+    if (m<0.0 || m>1.0) { cerr << "ERROR (set migration): migration fraction has to be within [0,1]" << endl; exit(1); }
 
-    if(find(i)->second.m.count(j) !=0 ) { find(i)->second.m.erase(j); }
+    if (find(i)->second.m.count(j) !=0) { find(i)->second.m.erase(j); }
 
     find(i)->second.m.insert(pair<int,double>(j,m)); 
   }
@@ -812,18 +823,18 @@ public:
   {
     char type = E.t;
 
-    if(type == 'P') // add subpopulation
+    if (type == 'P') // add subpopulation
       { 
-	if(E.np == 2) // empty subpopulation
+	if (E.np == 2) // empty subpopulation
 	  { 
-	    string sub = E.s[0]; sub.erase(0,1);
+	    string sub = E.s[0]; sub.erase(0, 1);
 
 	    int i = atoi(sub.c_str());
 	    int n = (int)atof(E.s[1].c_str());
 	    add_subpopulation(i,n);
 	  }
 	      
-	if(E.np == 3) // drawn from source population
+	if (E.np == 3) // drawn from source population
 	  {
 	    string sub1 = E.s[0]; sub1.erase(0,1);
 	    string sub2 = E.s[2]; sub2.erase(0,1);
@@ -835,9 +846,9 @@ public:
 	  } 
       }
 	  
-    if(type == 'N') // set subpopulation size
+    if (type == 'N') // set subpopulation size
       { 
-	string sub = E.s[0]; sub.erase(0,1);
+	string sub = E.s[0]; sub.erase(0, 1);
 
 	int i = atoi(sub.c_str());
 	int n = (int)atof(E.s[1].c_str());
@@ -845,9 +856,9 @@ public:
 	set_size(i,n);
       }
 
-    if(type == 'S') // set selfing rate
+    if (type == 'S') // set selfing rate
       { 
-	string sub = E.s[0]; sub.erase(0,1);
+	string sub = E.s[0]; sub.erase(0, 1);
 
 	int i    = atoi(sub.c_str());
 	double s = atof(E.s[1].c_str());
@@ -855,7 +866,7 @@ public:
 	set_selfing(i,s);
       }
 	  
-    if(type == 'M') // change migration rate
+    if (type == 'M') // change migration rate
       {
 	string sub1 = E.s[0]; sub1.erase(0,1);
 	string sub2 = E.s[1]; sub2.erase(0,1);
@@ -867,21 +878,21 @@ public:
 	set_migration(i,j,m); 
       }
 
-    if(type == 'A') // output state of entire population
+    if (type == 'A') // output state of entire population
       {
-	if(E.s.size() == 0)
+	if (E.s.size() == 0)
 	  {
 	    cout << "#OUT: " << g << " A" << endl;
 	    print_all(chr); 
 	  }	
-	if(E.s.size() == 1)
+	if (E.s.size() == 1)
 	  {
 	    ofstream outfile;
 	    outfile.open (E.s[0].c_str());
 
-	    for(int i=0; i<parameters.size(); i++) { outfile << parameters[i] << endl; }
+	    for (int i=0; i<parameters.size(); i++) { outfile << parameters[i] << endl; }
 
-	    if(outfile.is_open()) 
+	    if (outfile.is_open()) 
 	      { 
 		outfile << "#OUT: " << g << " A " << E.s[0].c_str() << endl;
 		print_all(outfile,chr);
@@ -891,28 +902,28 @@ public:
 	  }
       }
 
-    if(type == 'R') // output random subpopulation sample
+    if (type == 'R') // output random subpopulation sample
       {
-	string sub = E.s[0]; sub.erase(0,1);
+	string sub = E.s[0]; sub.erase(0, 1);
 
 	int    i = atoi(sub.c_str());
 	int    n = atoi(E.s[1].c_str());   
 	cout << "#OUT: " << g << " R p" << i << " " << n << endl;
 
-	if(E.s.size() == 3 && E.s[2] == "MS") { print_sample_ms(i,n,chr); }
+	if (E.s.size() == 3 && E.s[2] == "MS") { print_sample_ms(i,n,chr); }
 	else { print_sample(i,n,chr); }
       }
 
-    if(type == 'F') // output list of fixed mutations
+    if (type == 'F') // output list of fixed mutations
       {
 	cout << "#OUT: " << g << " F " << endl;
 	cout << "Mutations:" << endl;
-	for(int i=0; i<Substitutions.size(); i++) { cout << i+1; Substitutions[i].print(chr); }
+	for (int i=0; i<Substitutions.size(); i++) { cout << i+1; Substitutions[i].print(chr); }
       }
 
-    if(type == 'T') // track mutation-types
+    if (type == 'T') // track mutation-types
       {
-	string sub = E.s[0]; sub.erase(0,1);
+	string sub = E.s[0]; sub.erase(0, 1);
 	FM.push_back(atoi(sub.c_str()));
       }
   }
@@ -925,12 +936,12 @@ public:
         // is a mutation of a non-neutral type present, the pre-existing mutation is re-assigned
         // a neutral type (there must be only one mutation of a non-neutral type at any site
         // at any time)
-    if(count(M.i)==0) { cerr << "ERROR (predetermined mutation): subpopulation "<< M.i << " does not exists" << endl; exit(1); }
-    if(chr.mutation_types.count(M.t) == 0) 
+    if (count(M.i)==0) { cerr << "ERROR (predetermined mutation): subpopulation "<< M.i << " does not exists" << endl; exit(1); }
+    if (chr.mutation_types.count(M.t) == 0) 
       { 
 	cerr << "ERROR (predetermined mutation): mutation type m"<< M.t << " has not been defined" << endl; exit(1); 
       }
-    if(find(M.i)->second.G_child.size()/2 < M.nAA + M.nAa) 
+    if (find(M.i)->second.G_child.size()/2 < M.nAA + M.nAa) 
       { 
 	cerr << "ERROR (predetermined mutation): not enough individuals in subpopulation "<< M.i << endl; exit(1); 
       }
@@ -957,7 +968,7 @@ public:
     
     // introduce homozygotes
 
-    for(int j=0; j<M.nAA; j++)
+    for (int j=0; j<M.nAA; j++)
       {
     // recall: a genonme is a vector of mutations
     // find subpopulation, then return two of its children
@@ -981,7 +992,7 @@ public:
 
     // introduce heterozygotes
 
-    for(int j=M.nAA; j<M.nAA+M.nAa; j++) 
+    for (int j=M.nAA; j<M.nAA+M.nAa; j++) 
       { 
 	genome *g1 = &find(M.i)->second.G_child[2*j];
 	(*g1).push_back(m);
@@ -998,25 +1009,25 @@ public:
 
     // find all polymorphism of the types that are to be tracked
 
-    for(it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // go through all subpopulations
       {
 	multimap<int,polymorphism> P;
 	multimap<int,polymorphism>::iterator P_it;
 
-	for(int i=0; i<2*it->second.N; i++) // go through all children
+	for (int i=0; i<2*it->second.N; i++) // go through all children
 	  {
-	    for(int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
+	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 	      {
-		for(int j=0; j<TM.size(); j++)
+		for (int j=0; j<TM.size(); j++)
 		  {
-		    if(it->second.G_child[i][k].t == TM[j]) { add_mut(P,it->second.G_child[i][k]); }
+		    if (it->second.G_child[i][k].t == TM[j]) { add_mut(P,it->second.G_child[i][k]); }
 		  }
 	      }
 	  }
 
 	// out put the frequencies of these mutations in each subpopulation
 
-	for(P_it = P.begin(); P_it != P.end(); P_it++) 
+	for (P_it = P.begin(); P_it != P.end(); P_it++) 
 	  { 
 	    cout << "#OUT: " << g << " T p" << it->first << " "; P_it->second.print_noi(P_it->first,chr); 
 	  }
@@ -1027,23 +1038,23 @@ public:
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
 
-    if(PS.size()>0)
+    if (PS.size()>0)
       {
 	P.clear();
 
-	int N = 0; for(it = begin(); it != end(); it++) { N += it->second.N; }
+	int N = 0; for (it = begin(); it != end(); it++) { N += it->second.N; }
 
 	// find all polymorphism that are supposed to undergo partial sweeps
 
-	for(it = begin(); it != end(); it++) // go through all subpopulations
+	for (it = begin(); it != end(); it++) // go through all subpopulations
 	  {
-	    for(int i=0; i<2*it->second.N; i++) // go through all children
+	    for (int i=0; i<2*it->second.N; i++) // go through all children
 	      {
-		for(int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
+		for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 		  {
-		    for(int j=0; j<PS.size(); j++)
+		    for (int j=0; j<PS.size(); j++)
 		      {
-			if(it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t) 
+			if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t) 
 			  {
 			    add_mut(P,it->second.G_child[i][k]); 
 			  }
@@ -1054,23 +1065,23 @@ public:
     
 	// check whether a partial sweep has reached its target frequency
 
-	for(P_it = P.begin(); P_it != P.end(); P_it++) 
+	for (P_it = P.begin(); P_it != P.end(); P_it++) 
 	  { 
-	    for(int j=0; j<PS.size(); j++)
+	    for (int j=0; j<PS.size(); j++)
 	      {
-		if(P_it->first == PS[j].x && P_it->second.t == PS[j].t)
+		if (P_it->first == PS[j].x && P_it->second.t == PS[j].t)
 		  {
-		    if(((float)P_it->second.n)/(2*N) >= PS[j].p)
+		    if (((float)P_it->second.n)/(2*N) >= PS[j].p)
 		      {
 			// sweep has reached target frequency, set all s to zero
 			
-			for(it = begin(); it != end(); it++) // go through all subpopulations
+			for (it = begin(); it != end(); it++) // go through all subpopulations
 			  {
-			    for(int i=0; i<2*it->second.N; i++) // go through all children
+			    for (int i=0; i<2*it->second.N; i++) // go through all children
 			      {
-				for(int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
+				for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 				  {
-				    if(it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t)
+				    if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t)
 				      {
 					it->second.G_child[i][k].s = 0.0;
 				      }
@@ -1094,7 +1105,7 @@ public:
     // create map of shuffled children ids
 
     int child_map[find(i)->second.N];          
-    for(int j = 0; j < find(i)->second.N; j++) { child_map[j] = j; }
+    for (int j = 0; j < find(i)->second.N; j++) { child_map[j] = j; }
     gsl_ran_shuffle(rng,child_map,find(i)->second.N,sizeof(int));
 
 
@@ -1104,13 +1115,13 @@ public:
     
     map<int,double>::iterator it;
 
-    for(map<int,double>::iterator it = find(i)->second.m.begin(); it != find(i)->second.m.end(); it++)
+    for (map<int,double>::iterator it = find(i)->second.m.begin(); it != find(i)->second.m.end(); it++)
       {
 	int n_migrants = (int)(it->second * find(i)->second.N + 0.5);
         
-	for(int m=0; m<n_migrants; m++) 
+	for (int m=0; m<n_migrants; m++) 
 	  {
-	    if(c>=find(i)->second.N) { cerr << "ERROR (evolve subpopulation): too many migrants in subpopulation "<< i << endl; exit(1); } 
+	    if (c>=find(i)->second.N) { cerr << "ERROR (evolve subpopulation): too many migrants in subpopulation "<< i << endl; exit(1); } 
 
 	    g1 = 2*child_map[c];   // child genome 1
 	    g2 = 2*child_map[c]+1; // child genome 2
@@ -1118,7 +1129,7 @@ public:
 	    // draw parents in source population
 
 	    p1 = gsl_rng_uniform_int(rng,find(it->first)->second.G_parent.size()/2);
-	    if(gsl_rng_uniform(rng) < find(it->first)->second.S) { p2 = p1; }
+	    if (gsl_rng_uniform(rng) < find(it->first)->second.S) { p2 = p1; }
 	    else { p2 = gsl_rng_uniform_int(rng,find(it->first)->second.G_parent.size()/2); }
 
 	    // recombination, gene-conversion, mutation
@@ -1132,13 +1143,13 @@ public:
 	    
     // remainder
 
-    while(c<find(i)->second.N) 
+    while (c<find(i)->second.N) 
       {
 	g1 = 2*child_map[c];   // child genome 1
 	g2 = 2*child_map[c]+1; // child genome 2
 
 	p1 = find(i)->second.draw_individual();                 // parent 1
-	if(gsl_rng_uniform(rng) < find(i)->second.S) { p2 = p1; } // parent 2
+	if (gsl_rng_uniform(rng) < find(i)->second.S) { p2 = p1; } // parent 2
 	else { p2 = find(i)->second.draw_individual(); }
 
 	crossover_mutation(i,g1,i,2*p1,2*p1+1,chr);
@@ -1162,7 +1173,7 @@ public:
     //
     // p1 and p2 are swapped in half of the cases to assure random assortement
 
-    if(gsl_rng_uniform_int(rng,2)==0) { int swap = P1; P1 = P2; P2 = swap; } // swap p1 and p2
+    if (gsl_rng_uniform_int(rng,2)==0) { int swap = P1; P1 = P2; P2 = swap; } // swap p1 and p2
 
     find(i)->second.G_child[c].clear();
 
@@ -1170,7 +1181,7 @@ public:
 
     vector<mutation> M;
     int n_mut = chr.draw_n_mut();
-    for(int k=0; k<n_mut; k++) { M.push_back(chr.draw_new_mut()); }
+    for (int k=0; k<n_mut; k++) { M.push_back(chr.draw_new_mut()); }
     sort(M.begin(),M.end());
     
     // create vector with recombination breakpoints
@@ -1194,38 +1205,38 @@ public:
 
     int r = 0; int r_max  = R.size(); int n = 0; bool present;
 
-    while(r != r_max)
+    while (r != r_max)
       {
-	while((p != p_max && (*p).x < R[r]) || (m != m_max && (*m).x < R[r]))
+	while ((p != p_max && (*p).x < R[r]) || (m != m_max && (*m).x < R[r]))
 	  {
-	    while(p != p_max && (*p).x < R[r] && (m == m_max || (*p).x <= (*m).x))
+	    while (p != p_max && (*p).x < R[r] && (m == m_max || (*p).x <= (*m).x))
 	      {
 		present = 0;
-		if(n != 0 && find(i)->second.G_child[c].back().x == (*p).x)
+		if (n != 0 && find(i)->second.G_child[c].back().x == (*p).x)
 		  {
 		    int k = n-1;
-		    while(present == 0 && k >= 0)
+		    while (present == 0 && k >= 0)
 		      {
-			if(find(i)->second.G_child[c][k] == (*p)) { present = 1; }
+			if (find(i)->second.G_child[c][k] == (*p)) { present = 1; }
 			k--;
 		      }
 		  }
-		if(present == 0) { find(i)->second.G_child[c].push_back(*p); n++; }
+		if (present == 0) { find(i)->second.G_child[c].push_back(*p); n++; }
 		p++;
 	      }
-	    while(m != m_max && (*m).x < R[r] && (p == p_max || (*m).x <= (*p).x))
+	    while (m != m_max && (*m).x < R[r] && (p == p_max || (*m).x <= (*p).x))
 	      {
 	    	present = 0;
-		if(n != 0 && find(i)->second.G_child[c].back().x == (*m).x)
+		if (n != 0 && find(i)->second.G_child[c].back().x == (*m).x)
 		  {
 		    int k = n-1;
-		    while(present == 0 && k >= 0)
+		    while (present == 0 && k >= 0)
 		      {
-			if(find(i)->second.G_child[c][k] == (*m)) { present = 1; }
+			if (find(i)->second.G_child[c][k] == (*m)) { present = 1; }
 			k--;
 		      }
 		  }
-		if(present == 0) { find(i)->second.G_child[c].push_back(*m); n++; }
+		if (present == 0) { find(i)->second.G_child[c].push_back(*m); n++; }
 		m++;
 	      }
 	  }
@@ -1234,7 +1245,7 @@ public:
 
 	p1 = p2; p1_max = p2_max; p2 = p; p2_max = p_max; p = p1; p_max = p1_max; 
 
-	while(p != p_max && (*p).x < R[r]) { p++; }
+	while (p != p_max && (*p).x < R[r]) { p++; }
 
 	r++;
       }
@@ -1249,7 +1260,7 @@ public:
 
     // make children the new parents and update fitnesses
 
-    for(it = begin(); it != end(); it++) 
+    for (it = begin(); it != end(); it++) 
       { 
 	it->second.swap();
 	it->second.update_fitness(chr); 
@@ -1263,24 +1274,24 @@ public:
 
     genome G = begin()->second.G_child[0];
 
-    for(it = begin(); it != end(); it++) // subpopulations
+    for (it = begin(); it != end(); it++) // subpopulations
       {
-	for(int i=0; i<2*it->second.N; i++) // child genomes
+	for (int i=0; i<2*it->second.N; i++) // child genomes
 	  {
 	    G = fixed(it->second.G_child[i],G);
 	  }
       }
 
-    if(G.size()>0)
+    if (G.size()>0)
       {
-	for(it = begin(); it != end(); it++) // subpopulations
+	for (it = begin(); it != end(); it++) // subpopulations
 	  {
-	    for(int i=0; i<2*it->second.N; i++) // child genomes
+	    for (int i=0; i<2*it->second.N; i++) // child genomes
 	      {
 		it->second.G_child[i] = polymorphic(it->second.G_child[i],G);
 	      }
 	  }
-	for(int i=0; i<G.size(); i++) { Substitutions.push_back(substitution(G[i],g)); } 
+	for (int i=0; i<G.size(); i++) { Substitutions.push_back(substitution(G[i],g)); } 
       }
   }
 
@@ -1290,18 +1301,18 @@ public:
     // print all mutations and all genomes 
 
     cout << "Populations:" << endl;
-    for(it = begin(); it != end(); it++) {  cout << "p" << it->first << " " << it->second.N << endl; }
+    for (it = begin(); it != end(); it++) {  cout << "p" << it->first << " " << it->second.N << endl; }
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
 
     // add all polymorphisms
 
-    for(it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // go through all subpopulations
       {
-	for(int i=0; i<2*it->second.N; i++) // go through all children
+	for (int i=0; i<2*it->second.N; i++) // go through all children
 	  {
-	    for(int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
+	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 	      {
 		add_mut(P,it->second.G_child[i][k]);
 	      }
@@ -1310,19 +1321,19 @@ public:
 
     cout << "Mutations:"  << endl;
     
-    for(P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(P_it->first,chr); }
+    for (P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(P_it->first,chr); }
 
     cout << "Genomes:" << endl;
 
     // print all genomes
 
-    for(it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // go through all subpopulations
       {
-	for(int i=0; i<2*it->second.N; i++) // go through all children
+	for (int i=0; i<2*it->second.N; i++) // go through all children
 	  {
 	    cout << "p" << it->first << ":" << i+1;
 
-	    for(int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
+	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 	      {
 		int id = find_mut(P,it->second.G_child[i][k]);
 		cout << " " << id; 
@@ -1339,18 +1350,18 @@ public:
     // print all mutations and all genomes 
 
     outfile << "Populations:" << endl;
-    for(it = begin(); it != end(); it++) {  outfile << "p" << it->first << " " << it->second.N << endl; }
+    for (it = begin(); it != end(); it++) {  outfile << "p" << it->first << " " << it->second.N << endl; }
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
 
     // add all polymorphisms
 
-    for(it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // go through all subpopulations
       {
-	for(int i=0; i<2*it->second.N; i++) // go through all children
+	for (int i=0; i<2*it->second.N; i++) // go through all children
 	  {
-	    for(int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
+	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 	      {
 		add_mut(P,it->second.G_child[i][k]);
 	      }
@@ -1359,19 +1370,19 @@ public:
 
     outfile << "Mutations:"  << endl;
     
-    for(P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(outfile,P_it->first,chr); }
+    for (P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(outfile,P_it->first,chr); }
 
     outfile << "Genomes:" << endl;
 
     // print all genomes
 
-    for(it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // go through all subpopulations
       {
-	for(int i=0; i<2*it->second.N; i++) // go through all children
+	for (int i=0; i<2*it->second.N; i++) // go through all children
 	  {
 	    outfile << "p" << it->first << ":" << i+1;
 
-	    for(int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
+	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 	      {
 		int id = find_mut(P,it->second.G_child[i][k]);
 		outfile << " " << id; 
@@ -1387,19 +1398,19 @@ public:
   {
     // print sample of n genomes from subpopulation  i
 
-    if(count(i)==0) { cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1); }
+    if (count(i)==0) { cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1); }
 
     vector<int> sample; 
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
     
-    for(int s=0; s<n; s++) 
+    for (int s=0; s<n; s++) 
       { 
 	int j = gsl_rng_uniform_int(rng,find(i)->second.G_child.size());
 	sample.push_back(j);
 
-	for(int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
+	for (int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
 	  {
 	    add_mut(P,find(i)->second.G_child[j][k]);
 	  }
@@ -1407,17 +1418,17 @@ public:
 
     cout << "Mutations:"  << endl;
     
-    for(P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(P_it->first,chr); }
+    for (P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(P_it->first,chr); }
 
     cout << "Genomes:" << endl;
 
     // print all genomes
 
-    for(int j=0; j<sample.size(); j++) // go through all children
+    for (int j=0; j<sample.size(); j++) // go through all children
       {
 	cout << "p" << find(i)->first << ":" << sample[j]+1;
 
-	for(int k=0; k<find(i)->second.G_child[sample[j]].size(); k++) // go through all mutations
+	for (int k=0; k<find(i)->second.G_child[sample[j]].size(); k++) // go through all mutations
 	  {
 	    int id = find_mut(P,find(i)->second.G_child[sample[j]][k]);
 	    cout << " " << id; 
@@ -1431,19 +1442,19 @@ public:
   {
     // print sample of n genomes from subpopulation  i
 
-    if(count(i)==0) { cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1); }
+    if (count(i)==0) { cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1); }
 
     vector<int> sample; 
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
     
-    for(int s=0; s<n; s++) 
+    for (int s=0; s<n; s++) 
       { 
 	int j = gsl_rng_uniform_int(rng,find(i)->second.G_child.size());
 	sample.push_back(j);
 
-	for(int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
+	for (int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
 	  {
 	    add_mut(P,find(i)->second.G_child[j][k]);
 	  }
@@ -1455,10 +1466,10 @@ public:
 
     // print all positions
 
-    if(P.size()>0)
+    if (P.size()>0)
       {
 	cout << "positions:"; 
-	for(P_it = P.begin(); P_it != P.end(); P_it++) 
+	for (P_it = P.begin(); P_it != P.end(); P_it++) 
 	  { 
 	    cout << " " << fixed << setprecision(7) << (double)(P_it->first+1)/(chr.L+1); 
 	  }
@@ -1467,18 +1478,18 @@ public:
 
     // print genotypes
 
-    for(int j=0; j<sample.size(); j++) // go through all children
+    for (int j=0; j<sample.size(); j++) // go through all children
       {
 	string genotype(P.size(),'0');
 
-	for(int k=0; k<find(i)->second.G_child[sample[j]].size(); k++) // go through all mutations
+	for (int k=0; k<find(i)->second.G_child[sample[j]].size(); k++) // go through all mutations
 	  {
 	    int pos = 0;
 	    mutation m = find(i)->second.G_child[sample[j]][k];
 
-	    for(P_it = P.begin(); P_it != P.end(); P_it++) 
+	    for (P_it = P.begin(); P_it != P.end(); P_it++) 
 	      {
-		if(P_it->first == m.x && P_it->second.t == m.t && P_it->second.s == m.s)
+		if (P_it->first == m.x && P_it->second.t == m.t && P_it->second.s == m.s)
 		  {
 		    genotype.replace(pos,1,"1");
 		    break;
@@ -1503,9 +1514,9 @@ public:
     pair<multimap<int,polymorphism>::iterator,multimap<int,polymorphism>::iterator> range = P.equal_range(m.x);
     it = range.first;
 
-    while(it != range.second)
+    while (it != range.second)
       {
-	if(it->second.t == m.t && it->second.s == m.s) 
+	if (it->second.t == m.t && it->second.s == m.s) 
 	  { 
 	    id = it->second.i;
 	    it->second.n++;
@@ -1530,9 +1541,9 @@ public:
     pair<multimap<int,polymorphism>::iterator,multimap<int,polymorphism>::iterator> range = P.equal_range(m.x);
     it = range.first;
 
-    while(it != range.second)
+    while (it != range.second)
       {
-	if(it->second.t == m.t && it->second.s == m.s) 
+	if (it->second.t == m.t && it->second.s == m.s) 
 	  { 
 	    id = it->second.i;
 	    it->second.n++;
@@ -1543,13 +1554,14 @@ public:
 
     // if not already present, add mutation to P
 
-    if(id == 0)
+    if (id == 0)
       {
 	id = P.size()+1;
 	P.insert(pair<int,polymorphism>(m.x,polymorphism(id,m.t,m.s,1)));
       }
-  }
-};
+  } // end of add_mut() method
+
+}; // end of class 'population'
 
 
 
@@ -1557,9 +1569,9 @@ public:
 void get_line(ifstream& infile, string& line)
 {
   getline(infile, line);
-  if(line.find("/")!= string::npos) { line.erase(line.find("/")); } // remove all after "/"; these
+  if (line.find("/")!= string::npos) { line.erase(line.find("/")); } // remove all after "/"; these
         // lines are interpreted as comments
-  line.erase(0, line.find_first_not_of(' ') ); // remove leading whitespaces
+  line.erase(0, line.find_first_not_of(' ')); // remove leading whitespaces
   line.erase(line.find_last_not_of(' ') + 1); // remove trailing whitespaces
 };
 
@@ -1568,22 +1580,22 @@ void input_error(int type, string line)
 {
   cerr << endl;
 
-  if(type==-2) // no population defined
+  if (type == -2) // no population defined
      {
        cerr << "ERROR (parameter file): no population to simulate:" << endl << endl;
      }
   
-  else if(type==-1) // unknown parameter
+  else if (type == -1) // unknown parameter
      {
        cerr << "ERROR (parameter file): unknown parameter: " << line << endl << endl;
      }
 
-  else if(type==0) // invalid parameter file
+  else if (type == 0) // invalid parameter file
     {
       cerr << "ERROR (parameter file): could not open: " << line << endl << endl;
     }
   
-  else if(type==1) // mutation rate
+  else if (type == 1) // mutation rate
     {
       cerr << "ERROR (parameter file): invalid mutation rate: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1594,7 +1606,7 @@ void input_error(int type, string line)
       cerr << "1.5e-8" << endl << endl;
     }
 
-  else if(type==2) // mutation type
+  else if (type == 2) // mutation type
     {
       cerr << "ERROR (parameter file): invalid mutation type: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1608,8 +1620,7 @@ void input_error(int type, string line)
       cerr << "m3 0.5 e 0.01" << endl << endl;
     }
 
-
-  else if(type==3) // genomic element type
+  else if (type == 3) // genomic element type
     {
       cerr << "ERROR (parameter file): invalid genomic element type: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1621,7 +1632,7 @@ void input_error(int type, string line)
       cerr << "g1 m3 0.8 m2 0.01 m1 0.19" << endl << endl;
     }
 
-  else if(type==4) // chromosome organization
+  else if (type == 4) // chromosome organization
     {
       cerr << "ERROR (parameter file): invalid chromosome organization: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1633,7 +1644,7 @@ void input_error(int type, string line)
       cerr << "g1 1000 1999" << endl << endl;
     }
 
-  else if(type==5) // recombination rate
+  else if (type == 5) // recombination rate
     {
       cerr << "ERROR (parameter file): invalid recombination rate: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1646,7 +1657,7 @@ void input_error(int type, string line)
       cerr << "20000 4.5e-8" << endl << endl;
     }
   
-  else if(type==6) // generations
+  else if (type == 6) // generations
     {
       cerr << "ERROR (parameter file): invalid generations: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1657,7 +1668,7 @@ void input_error(int type, string line)
       cerr << "10000" << endl << endl;
     }
 
-  else if(type==7) // demography and structure
+  else if (type == 7) // demography and structure
     {
       cerr << "ERROR (parameter file): invalid demography and structure: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1676,7 +1687,7 @@ void input_error(int type, string line)
       cerr << "4000 E p2 e2" << endl << endl;
     }
 
-  else if(type==8) // output
+  else if (type == 8) // output
     {
       cerr << "ERROR (parameter file): invalid output: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1692,7 +1703,7 @@ void input_error(int type, string line)
       cerr << "1 T m3" << endl << endl;
     }
 
-  else if(type==9) // initialization
+  else if (type == 9) // initialization
     {
       cerr << "ERROR (parameter file): invalid initialization: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1703,7 +1714,7 @@ void input_error(int type, string line)
       cerr << "outfile" << endl << endl;
     }
 
-  else if(type==10) // seed
+  else if (type == 10) // seed
     {
       cerr << "ERROR (parameter file): invalid seed: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1714,18 +1725,18 @@ void input_error(int type, string line)
       cerr << "141235" << endl << endl;
     }
 
-  else if(type==11) // predetermined mutation
+  else if (type == 11) // predetermined mutation
     {
       cerr << "ERROR (parameter file): invalid predetermined mutations: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#PREDETERMINED MUTATIONS" << endl;
-      cerr << "<time> <mut-type> <x> <pop> <nAA> <nAa> <linkage> [P <f>]" << endl << endl;
+      cerr << "<time> <mut-type> <x> <pop-id> <nAA> <nAa> <linkage> [P <f>]" << endl << endl;
       cerr << "Example:" << endl << endl;
       cerr << "#PREDETERMINED MUTATIONS" << endl;
       cerr << "5000 m7 45000 p1 0 1 e" << endl << endl;
     }
 
-  else if(type==12) // gene conversion
+  else if (type == 12) // gene conversion
     {
       cerr << "ERROR (parameter file): invalid gene conversion: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1736,7 +1747,7 @@ void input_error(int type, string line)
       cerr << "0.5 20" << endl << endl;
     }
 
-  else if(type == 13) // fitness interaction
+  else if (type == 13) // fitness interaction
     {
       cerr << "ERROR (parameter file): invalid fitness interaction: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
@@ -1746,6 +1757,18 @@ void input_error(int type, string line)
       cerr << "#FITNESS INTERACTION" << endl;
       cerr << "a" << endl << endl;
     } // end of fitness interaction
+
+  else if (type == 14) // environment
+    {
+      cerr << "ERROR  (parameter file): invalid environment:" << line << endl << endl;
+      cerr << "Required syntax:" << endl << endl;
+      cerr << "#ENVIRONMENTS" << endl;
+      cerr << "<environment-id> <mut-type> <h> <s-modif> [<mut-type> <<h>> <s-modif>...]" << endl;
+      cerr << "..." << endl << endl;
+      cerr << "Example:" << endl << endl;
+      cerr << "#ENVIRONMENTS" << endl;
+      cerr << "e1 m1 0.5 -1.0 m2 0.0 0.5 m3 1.0 1.0" << endl << endl;
+    } // end of environment
 
   exit(1);
 };
@@ -1761,11 +1784,12 @@ void check_input_file(char* file)
   int recombination_rate = 0;
   int generations = 0;
   int population = 0;
-  int fitness_type = 0;
+  int fitness_interaction = 0;
+  int environments = 0;
 
   ifstream infile (file);
   // check if parameter file can be opened
-  if (!infile.is_open()) { input_error(0,string(file)); } // the method input_error handles
+  if (!infile.is_open()) { input_error(0, string(file)); } // the method input_error handles
         // different types of errors, here it is case "0"
 
   string line; string sub;
@@ -1773,639 +1797,676 @@ void check_input_file(char* file)
   get_line(infile, line); // calls a modified getline function that takes care of some comment
     // lines and white spaces at the beginning and end of lines.
   // read line by line
-  while(!infile.eof()) // while not hitting end of file 'infile'
+  while (!infile.eof()) // while not hitting end of file 'infile'
     {
-      if(line.find('#') != string::npos) // check for start of an input section, denoted by
+      if (line.find('#') != string::npos) // check for start of an input section, denoted by
         // an initial '#'; if this line starts a new parameter section
 	      {
         
           // 'mutation rate' section
-          if(line.find("MUTATION RATE") != string::npos)
+          if (line.find("MUTATION RATE") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
               // section or end of file
                 {
-                  if(line.length()>0) // if line is not empty
+                  if (line.length() > 0) // if line is not empty
                     {
-                      if(line.find_first_not_of("1234567890.e-") != string::npos)
-                        {  input_error(1,line);  }
+                      if (line.find_first_not_of("1234567890.e-") != string::npos)
+                        {  input_error(1, line);  }
                       else
                         {  mutation_rate++;  } // mutation_rate now 1
                     } // end of if line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'mutation rate' section
 
           // 'fitness interaction' section
-          if(line.find("FITNESS INTERACTION") != string::npos)
+          else if (line.find("FITNESS INTERACTION") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                                                                      // section or end of file
                 {
-                  if(line.length()>0) // if line is not empty
+                  if (line.length() > 0) // if line is not empty
                     {
-                      if(line.find_first_not_of("am") != string::npos)
-                        {  input_error(13,line);  }
+                      if (line.find_first_not_of("am") != string::npos)
+                        {  input_error(13, line);  }
                       else
-                        {  fitness_type++;  } // fitness_type now 1
+                        {  fitness_interaction++;  } // fitness_type now 1
                     } // end of if line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'mutation rate' section
 
           // 'mutation types' section
-          else if(line.find("MUTATION TYPES") != string::npos)
+          else if (line.find("MUTATION TYPES") != string::npos)
             {
               get_line(infile, line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                 // section or end of file
                 {
-                  if(line.length()>0) // line is not empty
+                  if (line.length() > 0) // line is not empty
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub;
-                      if(sub.compare(0,1,"m") != 0) { good = 0; }
-                      sub.erase(0,1);
-                      if(sub.find_first_not_of("1234567890") != string::npos )
+                      if (sub.compare(0, 1, "m") != 0)
+                        { good = 0; }
+                      sub.erase(0, 1);
+                      if (sub.find_first_not_of("1234567890") != string::npos)
                         { good = 0; } // id
-                      if(iss.eof()) // note that eof() here is the end of the string representing
+                      if (iss.eof()) // note that eof() here is the end of the string representing
                           // the current 'line'
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890.-") != string::npos )
+                      if (sub.find_first_not_of("1234567890.-") != string::npos)
                         { good = 0; } // h
-                      if(iss.eof()) { good = 0; }
+                      if (iss.eof()) { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("fge") != string::npos )
+                      if (sub.find_first_not_of("fge") != string::npos)
                         { good = 0; } // DFE-type
-                      if(sub.compare("f")==0 || sub.compare("e")==0) // one parameter
+                      if (sub.compare("f")==0 || sub.compare("e")==0) // one parameter
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub;
-                          if(sub.find_first_not_of("1234567890.-") != string::npos )
+                          if (sub.find_first_not_of("1234567890.-") != string::npos)
                             { good = 0; }
-                          if(!iss.eof()) { good = 0; }
+                          if (!iss.eof()) { good = 0; }
                         }
-                      if(sub.compare("g")==0) // two parameters
+                      if (sub.compare("g")==0) // two parameters
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub;
-                          if(sub.find_first_not_of("1234567890.-") != string::npos )
+                          if (sub.find_first_not_of("1234567890.-") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub;
-                          if(sub.find_first_not_of("1234567890.-") != string::npos )
+                          if (sub.find_first_not_of("1234567890.-") != string::npos)
                             { good = 0; }
-                          if(!iss.eof()) { good = 0; }
+                          if (!iss.eof()) { good = 0; }
                         }
-                      if(good == 0)
-                        { input_error(2,line); }
-                      else { mutation_types++; } // increase counter of mytation types
+                      if (good == 0)
+                        { input_error(2, line); }
+                      else
+                        { mutation_types++; } // increase counter of mytation types
                     } // end of if line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section
             } // end of mutation types section
         
-          // GO ON HERE: Add 'environments' section
           // 'environments' section
 
-          else if(line.find("ENVIRONMENTS") != string::npos)
+          else if (line.find("ENVIRONMENTS") != string::npos)
             {
+              cout << "Entering ENVIRONMENTS";
               get_line(infile, line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                 // section or end of file
                 {
-                  if(line.length() > 0) // line is not empty
+                  cout << "ENVIRONMENTS: while not hitting next section or end of file.";
+                  if (line.length() > 0) // line is not empty
                     {
-                      int good == 1;
+                      int good = 1;
                       istringstream iss(line);
                       iss >> sub;
-                      if(
-
+                      if (sub.compare(0, 1, "e") != 0)
+                        { good = 0; }
+                      sub.erase(0, 1); // id (of environment, numeric part)
+                      if (sub.find_first_not_of("1234567890") != string::npos)
+                        { good = 0; }
+                      if (iss.eof())
+                        { good = 0; }
+                      while(!iss.eof()) // while end of file (line) not reached
+                        {
+                          iss >> sub;
+                          if(sub.compare(0, 1, "m") != 0) // mutation-type id not starting with
+                              // "m"
+                            { good = 0; }
+                          sub.erase(0, 1); // mutation type id (numeric part)
+                          if(sub.find_first_not_of("1234567890") != string::npos)
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // h (dominance)
+                          if(sub.find_first_not_of("1234567890.e-") != string::npos)
+                            { good = 0; }
+                          if(iss.eof())
+                            { good = 0; }
+                          iss >> sub; // s-modif (modifier of [mean] selection coefficient)
+                          if(sub.find_first_not_of("1234567890.e-") != string::npos)
+                            { good = 0; }
+                        } // end of while end of file (line) not reached
+                      if (good == 0)
+                        { input_error(14, line); }
+                      else
+                        { environments++; } // increase environments counter
                     } // end of if line is not empty
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of environments section
            
           // 'genomic element types' section (only testing for presence and correctness of
-          else if(line.find("GENOMIC ELEMENT TYPES") != string::npos)
+          else if (line.find("GENOMIC ELEMENT TYPES") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                 // section or end of file
                 {
-                  if(line.length()>0) // line is not emtpy
+                  if (line.length() > 0) // line is not emtpy
                     {
                       int good = 1;
-                      istringstream iss(line); iss >> sub;
-                      if(sub.compare(0,1,"g") != 0)
+                      istringstream iss(line);
+                      iss >> sub;
+                      if (sub.compare(0, 1, "g") != 0)
                         { good = 0; }
-                      sub.erase(0,1); // id
-                      if(sub.find_first_not_of("1234567890") != string::npos )
+                      sub.erase(0, 1); // id
+                      if (sub.find_first_not_of("1234567890") != string::npos)
                         { good = 0; }
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
-                      while(!iss.eof()) // while end of file of line not reached
+                      while (!iss.eof()) // while end of file of line not reached
                         {
                           iss >> sub;
-                          if(sub.compare(0,1,"m") != 0)
+                          if (sub.compare(0, 1, "m") != 0)
                             { good = 0; }
-                          sub.erase(0,1); // mutation type id
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          sub.erase(0, 1); // mutation type id (numeric part)
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
-                          iss >> sub;
-                          if(sub.find_first_not_of("1234567890e.") != string::npos )
-                            { good = 0; } // fraction
+                          iss >> sub; // fraction
+                          if (sub.find_first_not_of("1234567890e.") != string::npos)
+                            { good = 0; }
                         } // end of while not hit end of file (i.e. end of current line)
-                      if(good == 0)
-                        { input_error(3,line); }
+                      if (good == 0)
+                        { input_error(3, line); }
                       else
                         { genomic_element_types++; } // increase counter
                     } // end of if line is not emtpy
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section
             } // end of 'genomic element types' section
         
           // 'chromosome organization' section
-          else if(line.find("CHROMOSOME ORGANIZATION") != string::npos)
-            { get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+          else if (line.find("CHROMOSOME ORGANIZATION") != string::npos)
+            { get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                 // section or end of file
                 {
-                  if(line.length()>0)
+                  if (line.length() > 0)
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub;
-                      if(sub.compare(0,1,"g") != 0)
+                      if (sub.compare(0, 1, "g") != 0)
                         { good = 0; }
-                      sub.erase(0,1);
-                      if(sub.find_first_not_of("1234567890") != string::npos )
+                      sub.erase(0, 1);
+                      if (sub.find_first_not_of("1234567890") != string::npos)
                         { good = 0; } // id
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; } // start
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; } // end
-                      if(!iss.eof())
+                      if (!iss.eof())
                         { good = 0; }
-                      if(good == 0)
-                        { input_error(4,line); }
+                      if (good == 0)
+                        { input_error(4, line); }
                       else
                         { chromosome_organization++; } // increase counter
                     } // end of if line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'chromosome organization' section
         
           // 'recombination rate' section
-          else if(line.find("RECOMBINATION RATE") != string::npos)
+          else if (line.find("RECOMBINATION RATE") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof())
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof())
                 {
-                  if(line.length()>0) // if line is not empty
+                  if (line.length() > 0) // if line is not empty
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; } // end
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890e.-") != string::npos )
+                      if (sub.find_first_not_of("1234567890e.-") != string::npos)
                         { good = 0; } // rate
-                      if(!iss.eof())
+                      if (!iss.eof())
                         { good = 0; }
-                      if(good == 0)
-                        { input_error(5,line); }
+                      if (good == 0)
+                        { input_error(5, line); }
                       else { recombination_rate++; } // increase counter
                     } // end of if line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'recombination rate' section
         
           // 'gene conversion' section
-          else if(line.find("GENE CONVERSION") != string::npos)
+          else if (line.find("GENE CONVERSION") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                   // section or end of file
                 {
-                  if(line.length()>0) // if line is not emtpy
+                  if (line.length() > 0) // if line is not emtpy
                     {
                       int good = 1;
                       istringstream iss(line); iss >> sub;
-                      if(sub.find_first_not_of("1234567890e.-") != string::npos )
+                      if (sub.find_first_not_of("1234567890e.-") != string::npos)
                         { good = 0; } // fraction
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890e.-") != string::npos )
+                      if (sub.find_first_not_of("1234567890e.-") != string::npos)
                         { good = 0; } // average length
-                      if(!iss.eof())
+                      if (!iss.eof())
                         { good = 0; }
-                      if(good == 0)
-                        { input_error(12,line); }
+                      if (good == 0)
+                        { input_error(12, line); }
                     } // end of if line is not empty
-                      get_line(infile,line);
+                      get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'gene conversion' section
         
           // 'generations' section
-          else if(line.find("GENERATIONS") != string::npos)
+          else if (line.find("GENERATIONS") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                   // section or end of file
                 {
-                  if(line.length()>0) // if line is not empty
+                  if (line.length() > 0) // if line is not empty
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; } // T
-                      if(!iss.eof())
+                      if (!iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(good == 0)
-                        { input_error(6,line); }
+                      if (good == 0)
+                        { input_error(6, line); }
                       else { generations++; } // increase counter
                     } // end of line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'generations' section
         
           // 'demography and structure' section
-          else if(line.find("DEMOGRAPHY AND STRUCTURE") != string::npos)
+          else if (line.find("DEMOGRAPHY AND STRUCTURE") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                   // section or end of file
                 {
-                  if(line.length()>0) // if line is not empty
+                  if (line.length() > 0) // if line is not empty
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub; // t(ime)
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; }
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("PSMNE") != string::npos )
+                      if (sub.find_first_not_of("PSMNE") != string::npos)
                         { good = 0; } // event type
                     
-                      if(sub.compare("P") == 0) // adding a new population; expect two or three
+                      if (sub.compare("P") == 0) // adding a new population; expect two or three
                         // positive integers (the third one for the source population is optional)
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // p1
-                          if(sub.compare(0,1,"p") != 0)
+                          if (sub.compare(0, 1, "p") != 0)
                             { good = 0; }
-                          sub.erase(0,1);
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          sub.erase(0, 1);
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // N (size of new population)
-                          if(sub.find_first_not_of("1234567890e") != string::npos )
+                          if (sub.find_first_not_of("1234567890e") != string::npos)
                             { good = 0; }
-                          if(!iss.eof()) // p2 (source population has been specified)
+                          if (!iss.eof()) // p2 (source population has been specified)
                             { // if not hit end of file
                               iss >> sub;
-                              if(sub.compare(0,1,"p") != 0)
+                              if (sub.compare(0, 1, "p") != 0)
                                 { good = 0; }
-                              sub.erase(0,1);
-                              if(sub.find_first_not_of("1234567890") != string::npos )
+                              sub.erase(0, 1);
+                              if (sub.find_first_not_of("1234567890") != string::npos)
                                 { good = 0; }
-                              if(!iss.eof())
+                              if (!iss.eof())
                                 { good = 0; }
                             } // end of if not hit end of file
                           population++; // increase counter
                         } // end of adding a new population
                     
-                      if(sub.compare("N")==0) // changing population size; expect two positive
+                      if (sub.compare("N")==0) // changing population size; expect two positive
                         // integers
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // p (population identifier)
-                          if(sub.compare(0,1,"p") != 0)
+                          if (sub.compare(0, 1, "p") != 0)
                             { good = 0; }
-                          sub.erase(0,1);
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          sub.erase(0, 1);
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // N (new size)
-                          if(sub.find_first_not_of("1234567890e") != string::npos )
+                          if (sub.find_first_not_of("1234567890e") != string::npos)
                             { good = 0; }
-                          if(!iss.eof())
+                          if (!iss.eof())
                             { good = 0; }
                         } // end of changing population size
 
-                      if(sub.compare("S")==0) // changing selfing rate; expect one positive integer and a double
+                      if (sub.compare("S")==0) // changing selfing rate; expect one positive integer and a double
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                               { good = 0; }
                           iss >> sub; // p (population identifier)
-                          if(sub.compare(0,1,"p") != 0)
+                          if (sub.compare(0, 1, "p") != 0)
                             { good = 0; }
-                          sub.erase(0,1);
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          sub.erase(0, 1);
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // sigma (selfing rate)
-                          if(sub.find_first_not_of("1234567890.-e") != string::npos )
+                          if (sub.find_first_not_of("1234567890.-e") != string::npos)
                             { good = 0; }
-                          if(!iss.eof())
+                          if (!iss.eof())
                             { good = 0; }
                         } // end of changing selfing rate
 
-                      if(sub.compare("M")==0) // changing migration rate; two positive integers and
-                        // a double
+                      if (sub.compare("M")==0) // changing migration rate; two positive integers
+                        // and a double
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // p (id of target population)
-                          if(sub.compare(0,1,"p") != 0)
+                          if (sub.compare(0, 1, "p") != 0)
                             { good = 0; }
-                          sub.erase(0,1);
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          sub.erase(0, 1);
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // p (id of source population)
-                          if(sub.compare(0,1,"p") != 0)
+                          if (sub.compare(0, 1, "p") != 0)
                             { good = 0; }
-                          sub.erase(0,1);
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          sub.erase(0, 1);
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // M (new migration rate)
-                          if(sub.find_first_not_of("1234567890.-e") != string::npos )
+                          if (sub.find_first_not_of("1234567890.-e") != string::npos)
                             { good = 0; }
-                          if(!iss.eof())
+                          if (!iss.eof())
                             { good = 0; }
                         } // end of changing migration rate
 
-                      if(sub.compare("E") == 0) // changing environment; time, "E", population id
+                      if (sub.compare("E") == 0) // changing environment; time, "E", population id
                         // and environment id
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // p(opulation id)
-                          if(sub.compare(0, 1, "p") != 0)
+                          if (sub.compare(0, 1, "p") != 0)
                             { good = 0; }
                           sub.erase(0, 1);
-                          if(sub.find_first_not_of("1234567890") != string::npos)
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // e(nvironment id)
-                          if(sub.compare(0, 1, "e") != 0)
+                          if (sub.compare(0, 1, "e") != 0)
                             { good = 0; }
                           sub.erase(0, 1);
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(!iss.eof())
+                          if (!iss.eof())
                             { good = 0; }
                         } // end of changing environment
 
-                      if(good == 0)
-                        { input_error(7,line); }
+                      if (good == 0)
+                        { input_error(7, line); }
                     } // end of if line is not emtpy
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'demography and structure' section
         
           // 'output section
-          else if(line.find("OUTPUT") != string::npos)
+          else if (line.find("OUTPUT") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof())
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof())
                 { // while not hitting next section or end of file
-                  if(line.length()>0) // if line is not emtpy
+                  if (line.length() > 0) // if line is not emtpy
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub;
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; } // t(ime)
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub;
-                      if(sub.find_first_not_of("ARFT") != string::npos )
+                      if (sub.find_first_not_of("ARFT") != string::npos)
                         { good = 0; } // event type
-                      if(sub.compare("A") == 0) // output state of entire population; expect no
+                      if (sub.compare("A") == 0) // output state of entire population; expect no
                         // parameter or a filename
                         {
-                          if(!iss.eof()) // there is a filename
+                          if (!iss.eof()) // there is a filename
                             {
                               iss >> sub;
-                              if(!iss.eof())
+                              if (!iss.eof())
                                 { good = 0; }
                             } // end of hitting end of file
                         } // end of if this is the "A" subtype of event
-                      if(sub.compare("R")==0) // output random sample; expect two parameters
+                      if (sub.compare("R")==0) // output random sample; expect two parameters
                         // and an optional flag specifying whether output should be given in the ms
                         // format
                         {
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // p (population id)
-                          if(sub.compare(0, 1, "p") != 0)
+                          if (sub.compare(0, 1, "p") != 0)
                             { good = 0; }
                           sub.erase(0, 1);
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // size of sample
-                          if(sub.find_first_not_of("1234567890") != string::npos )
+                          if (sub.find_first_not_of("1234567890") != string::npos)
                             { good = 0; }
-                          if(!iss.eof()) // one more argument, the ms option, is present
+                          if (!iss.eof()) // one more argument, the ms option, is present
                             {
                               iss >> sub; // MS
-                              if(sub != "MS")
+                              if (sub != "MS")
                                 { good = 0; }
                             } // end of check for optional MS option
-                          if(!iss.eof())
+                          if (!iss.eof())
                             { good = 0; }
                         } // end of if this is the "R" subtype of event
-                      if(sub.compare("F") == 0) // output list of all fixed mutations; expect no
+                      if (sub.compare("F") == 0) // output list of all fixed mutations; expect no
                         // parameter
                         {
-                        if(!iss.eof())
+                        if (!iss.eof())
                           { good = 0; }
                         } // end of if this is the "F" subtype of event
-                      if(sub.compare("T") == 0) // output track of mutations of particular type;
+                      if (sub.compare("T") == 0) // output track of mutations of particular type;
                         // expect one parameter (id of mutation type)
                         {
-                        if(iss.eof())
+                        if (iss.eof())
                           { good = 0; }
                         iss >> sub; // mutation type
-                        if(sub.compare(0, 1, "m") != 0)
+                        if (sub.compare(0, 1, "m") != 0)
                           { good = 0; }
                         sub.erase(0, 1);
-                        if(sub.find_first_not_of("1234567890") != string::npos)
+                        if (sub.find_first_not_of("1234567890") != string::npos)
                           { good = 0; }
-                        if(!iss.eof())
+                        if (!iss.eof())
                           { good = 0; }
                         } // end of if this is the "T" subtype of event
-                      if(good == 0)
-                        { input_error(8,line); }
+                      if (good == 0)
+                        { input_error(8, line); }
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'output' section
         
           // 'initialisation' section
-          else if(line.find("INITIALIZATION") != string::npos)
+          else if (line.find("INITIALIZATION") != string::npos)
             {
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next 
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next 
                 // section or end of file
                 {
-                  if(line.length()>0) // if line is not emtpy
+                  if (line.length() > 0) // if line is not emtpy
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub; // name of initialisation file
-                      if(!iss.eof())
+                      if (!iss.eof())
                         { good = 0; }
-                      if(good == 0)
-                        { input_error(9,line); }
+                      if (good == 0)
+                        { input_error(9, line); }
                       population++;
                     } // enf of if line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'initialisation' section
           
           // 'seed' section
-          else if(line.find("SEED") != string::npos)
+          else if (line.find("SEED") != string::npos)
             { 
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting end of
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting end of
                 // section or end of file
                 {
-                  if(line.length()>0) // if line is not empty
+                  if (line.length() > 0) // if line is not empty
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub; // seed
-                      if(sub.find_first_not_of("1234567890-") != string::npos ) { good = 0; }
-                      if(!iss.eof()) { good = 0; }
-                      if(good == 0) { input_error(10,line); }
+                      if (sub.find_first_not_of("1234567890-") != string::npos) { good = 0; }
+                      if (!iss.eof()) { good = 0; }
+                      if (good == 0) { input_error(10, line); }
                     }
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of if line is not empty
             } // end of 'seed' section
           
           // 'predetermined mutations' section; expect seven or nine entries, depending
             // on whether or not a partial sweep is desired
-          else if(line.find("PREDETERMINED MUTATIONS") != string::npos)
+          else if (line.find("PREDETERMINED MUTATIONS") != string::npos)
             { 
-              get_line(infile,line);
-              while(line.find('#') == string::npos && !infile.eof()) // while not hitting next
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                 // section or end of file
                 {
-                  if(line.length()>0) // if line is not empty
+                  if (line.length() > 0) // if line is not empty
                     {
                       int good = 1;
                       istringstream iss(line);
                       iss >> sub; // time
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; }
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub; // id (of mutation type)
-                      if(sub.compare(0,1,"m") != 0)
+                      if (sub.compare(0, 1, "m") != 0)
                         { good = 0; }
-                      sub.erase(0,1);
-                      if(sub.find_first_not_of("1234567890") != string::npos )
+                      sub.erase(0, 1);
+                      if (sub.find_first_not_of("1234567890") != string::npos)
                         { good = 0; }
-                      if(iss.eof()) { good = 0; }
+                      if (iss.eof()) { good = 0; }
                       iss >> sub; // x (position)
-                      if(sub.find_first_not_of("1234567890e") != string::npos )
+                      if (sub.find_first_not_of("1234567890e") != string::npos)
                         { good = 0; }
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub; // sub (population)
-                      if(sub.compare(0,1,"p") != 0)
+                      if (sub.compare(0, 1, "p") != 0)
                         { good = 0; }
-                      sub.erase(0,1);
-                      if(sub.find_first_not_of("1234567890") != string::npos )
+                      sub.erase(0, 1);
+                      if (sub.find_first_not_of("1234567890") != string::npos)
                         { good = 0; }
-                      if(iss.eof()) { good = 0; }
+                      if (iss.eof()) { good = 0; }
                       iss >> sub; // nAA (number of homozygotes)
-                      if(sub.find_first_not_of("1234567890") != string::npos )
+                      if (sub.find_first_not_of("1234567890") != string::npos)
                         { good = 0; }
-                      if(iss.eof())
+                      if (iss.eof())
                         { good = 0; }
                       iss >> sub; // nAa (number of heterozygotes)
-                      if(sub.find_first_not_of("1234567890") != string::npos )
+                      if (sub.find_first_not_of("1234567890") != string::npos)
                         { good = 0; }
                       iss >> sub; // linkage
-                      if(sub.find_first_not_of("de") != string::npos)
+                      if (sub.find_first_not_of("de") != string::npos)
                         { good = 0; }
-                      if(!iss.eof()) // expect two more entries (partial sweep)
+                      if (!iss.eof()) // expect two more entries (partial sweep)
                         {
                           iss >> sub;
-                          if(sub.find_first_not_of("P") != string::npos )
+                          if (sub.find_first_not_of("P") != string::npos)
                             { good = 0; }
-                          if(iss.eof())
+                          if (iss.eof())
                             { good = 0; }
                           iss >> sub; // freq (frequency at which allele turns neutral)
-                          if(sub.find_first_not_of("1234567890.-e") != string::npos )
+                          if (sub.find_first_not_of("1234567890.-e") != string::npos)
                             { good = 0; }
                         } // end of partial sweep subsection
-                      if(!iss.eof())
+                      if (!iss.eof())
                         { good = 0; }
-                      if(good == 0)
-                      { input_error(11,line); }
+                      if (good == 0)
+                      { input_error(11, line); }
                     } // end of if line is not empty
-                  get_line(infile,line);
+                  get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of 'predetermined mutations' section
           else // if none of the intended settings applies
-            { input_error(-1,line); } // unknown parameter (section)
+            { input_error(-1, line); } // unknown parameter (section)
         } // end of if this line starts a new parameter section; else: read next line
-      else { get_line(infile,line); }
+      else
+        { get_line(infile, line); }
     } // end of while not hitting end of file 'infile'; end of file 'infile' now reached
 
-  if(mutation_rate != 1)
-    { input_error(1,string()); }
-  if(mutation_types < 1)
-    { input_error(2,string()); }
-  if(genomic_element_types < 1)
-    { input_error(3,string()); }
-  if(chromosome_organization < 1)
-    { input_error(4,string()); }
-  if(recombination_rate < 1)
-    { input_error(5,string()); }
-  if(generations < 1)
-    { input_error(6,string()); }
-  if(population < 1)
-    { input_error(-2,string()); }
+  if (mutation_rate != 1)
+    { input_error(1, string()); }
+  if (mutation_types < 1)
+    { input_error(2, string()); }
+  if (genomic_element_types < 1)
+    { input_error(3, string()); }
+  if (chromosome_organization < 1)
+    { input_error(4, string()); }
+  if (recombination_rate < 1)
+    { input_error(5, string()); }
+  if (generations < 1)
+    { input_error(6, string()); }
+  if (population < 1)
+    { input_error(-2, string()); }
+  if (fitness_interaction != 1)
+    { input_error(13, string()); }
 }; // end of check_input_file()
 
 
@@ -2420,281 +2481,423 @@ void initialize_from_file(population& P, const char* file, chromosome& chr)
 
   ifstream infile (file);
 
-  if(!infile.is_open()) { cerr << "ERROR (initialize): could not open initialization file" << endl; exit(1); }
+  if (!infile.is_open()) { cerr << "ERROR (initialize): could not open initialization file" << endl; exit(1); }
 
-  get_line(infile,line);
+  get_line(infile, line);
 
-  while(line.find("Populations") == string::npos && !infile.eof()) { get_line(infile,line); } 
+  while (line.find("Populations") == string::npos && !infile.eof()) { get_line(infile, line); } 
 
-  get_line(infile,line);
+  get_line(infile, line);
 
-  while(line.find("Mutations") == string::npos && !infile.eof())
+  while (line.find("Mutations") == string::npos && !infile.eof())
     { 
-      istringstream iss(line); iss >> sub; sub.erase(0,1);  
+      istringstream iss(line); iss >> sub; sub.erase(0, 1);  
       int i = atoi(sub.c_str()); iss >> sub;  
       int n = atoi(sub.c_str());
       P.add_subpopulation(i,n);
-      get_line(infile,line);      
+      get_line(infile, line);      
     }
 
-  get_line(infile,line);
+  get_line(infile, line);
 
-  while(line.find("Genomes") == string::npos && !infile.eof()) 
+  while (line.find("Genomes") == string::npos && !infile.eof()) 
     {     
       istringstream iss(line); iss >> sub; 
-      int   i = atoi(sub.c_str()); iss >> sub; sub.erase(0,1); 
+      int   i = atoi(sub.c_str()); iss >> sub; sub.erase(0, 1); 
       int   t = atoi(sub.c_str()); iss >> sub; 
       int   x = atoi(sub.c_str())-1; iss >> sub; 
       float s = atof(sub.c_str());
 
       M.insert(pair<int,mutation>(i,mutation(t,x,s)));
-      get_line(infile,line); 
+      get_line(infile, line); 
     }
 
-  get_line(infile,line);
+  get_line(infile, line);
 
-  while(!infile.eof())
+  while (!infile.eof()) // while end of file not reached
     {
-      istringstream iss(line); iss >> sub; sub.erase(0,1);
+      istringstream iss(line); iss >> sub; sub.erase(0, 1);
       int pos = sub.find_first_of(":"); 
       int p = atoi(sub.substr(0,pos+1).c_str()); sub.erase(0,pos+1);  
       int i = atoi(sub.c_str());
 
-      while(iss >> sub) 
-	{ 
-	  int id = atoi(sub.c_str());
-	  P.find(p)->second.G_parent[i-1].push_back(M.find(id)->second);
-	}
-      get_line(infile,line);
-    }
+      while (iss >> sub) 
+        {
+          int id = atoi(sub.c_str());
+          P.find(p)->second.G_parent[i-1].push_back(M.find(id)->second);
+        }
+      get_line(infile, line);
+    } // end of while end of file not reached
 
-  for(P.it=P.begin(); P.it!=P.end(); P.it++) { P.it->second.update_fitness(chr); }
+  for (P.it = P.begin(); P.it != P.end(); P.it++)
+    {
+      P.it->second.update_fitness(chr);
+    }
 };
 
-
-void initialize(population& P, char* file, chromosome& chr, int &T, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
+/*
+  Initialises the population P using parameter values to be read from file. Initialises chromosome
+  chr, as well as demography and structure events E, output events O, user-defined mutations  IM
+  that will be introduced, and mutations PS undergoing partial sweeps.
+*/
+void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
 {
   string line; 
   string sub; 
 
   ifstream infile (file);
 
-  long pid=getpid();
-  time_t *tp,t; tp=&t; time(tp); t+=pid;
-  int seed=t;
+  // setting the seed based on the current time and the process id
+  long pid = getpid(); // obtain process id from operating system
+  time_t *tp, t;
+  tp = &t;
+  time(tp);
+  t += pid;
+  int seed = t;
 
+  get_line(infile, line);
 
-  get_line(infile,line);
-
-  while(!infile.eof())
+  while (!infile.eof()) // while not hitting end of file
     {
-      if(line.find('#') != string::npos) 
-	{
-	  if(line.find("MUTATION RATE") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#MUTATION RATE");
-	    while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-		      istringstream iss(line); iss >> sub;  chr.M = atof(sub.c_str());
-		    }
-		  get_line(infile,line); } }
+      if (line.find('#') != string::npos) // if hitting start of an input section
+        {
+          // mutation rate section
+          if (line.find("MUTATION RATE") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#MUTATION RATE");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting new
+                // input section
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      istringstream iss(line);
+                      iss >> sub;
+                      chr.M = atof(sub.c_str()); // initialise overall mutation rate
+                    } // end of if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting new input section
+            } // end of mutation rate section
 
-	  else if(line.find("MUTATION TYPES") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#MUTATION TYPES");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
+          // mutation types section
+          else if (line.find("MUTATION TYPES") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#MUTATION TYPES");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting new
+                // input section
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: i h t p
+                        // i: identifier; h: dominance; t [DFE-type]: f(ixed), e(xponential), or
+                        // g(amma); p [DFE parameters]: one for f and e (mean s), two for g (mean
+                        // s, shape)
+                      int i; float h; char t;
+                      vector<double> p; // one or two entries
+                      istringstream iss(line);
 
-		      // FORMAT: i h t p1 p2 ... (identifier, dominance coefficient DFE type, DFE parameters) 
+                      iss >> sub;
+                      sub.erase(0, 1); // getting rid of "m" for mutation type
+                      i = atoi(sub.c_str()); // initialise mutation type id
+                      if (chr.mutation_types.count(i) > 0) // assessed based on the key
+                        {
+                          cerr << "ERROR (initialize): mutation type "<< i << " already defined" << endl; exit(1);
+                        }
 
-		      int i; float h; char t; vector<double> p; istringstream iss(line);
-		      iss >> sub; sub.erase(0,1); i = atoi(sub.c_str());
+                      iss >> sub;
+                      h = atof(sub.c_str()); // initialise dominance coefficient
 
-		      if(chr.mutation_types.count(i)>0) 
-			{  
-			  cerr << "ERROR (initialize): mutation type "<< i << " already defined" << endl; exit(1);
-			}
+                      iss >> sub;
+                      t = sub.at(0); // initialise DFE-type
 
-		      iss >> sub; h = atof(sub.c_str());
-		      iss >> sub; t = sub.at(0);
-		      while(iss >> sub) { p.push_back(atof(sub.c_str())); }
-		      chr.mutation_types.insert(pair<int,mutation_type>(i,mutation_type(h,t,p)));
-		    } get_line(infile,line); } }
+                      while (iss >> sub) // there are one or two values to be read
+                        {
+                          p.push_back(atof(sub.c_str()));
+                        }
+                      chr.mutation_types.insert(pair<int,mutation_type>(i,mutation_type(h, t, p)));
+                    }
+                  get_line(infile, line);
+                } // end of while not hitting new input section
+            } // end of mutation types section
 
-	  else if(line.find("GENOMIC ELEMENT TYPES") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#GENOMIC ELEMENT TYPES");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
+          // genomic element types section
+          else if (line.find("GENOMIC ELEMENT TYPES") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#GENOMIC ELEMENT TYPES");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: i m1 g1 [m2 g2 ...]
+                        // (identifier, mut type class, fraction)
+                      int i; vector<int> m; vector<double> g;
+                      istringstream iss(line);
+                      iss >> sub;
+                      sub.erase(0, 1); // erasing "g"
+                      i = atoi(sub.c_str()); // initialising genomic-element-type id
+                      while (iss >> sub)
+                        { // while there are multiples of two parameters to be read
+                          sub.erase(0, 1); // erasing "m"
+                          m.push_back(atoi(sub.c_str())); // initialising mutation-type id
+                          iss >> sub;
+                          g.push_back(atof(sub.c_str())); // initialising fraction of mutations
+                            // made up of the current mutation type
+                        } // end of while there are multiples of two parameters to be read
+                      if (chr.genomic_element_types.count(i) > 0)
+                        {
+                          cerr << "ERROR (initialize): genomic element type "<< i << " already defined" << endl;
+                          exit(1);
+                        }
+                      chr.genomic_element_types.insert(pair<int,genomic_element_type>(i,genomic_element_type(m, g))); // m is the vector of mutation types, and g
+                          // the vector for fractions they make up of all mutations
+                    }
+                  get_line(infile, line);
+                } // end of while not hitting next input section
+            } // end of genomic element types section
 
-		      // FORMAT: i m1 g1 [m2 g2 ...] (identifier, mut type class, fraction)
+          // chromosome organization section
+          else if (line.find("CHROMOSOME ORGANIZATION") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#CHROMOSOME ORGANIZATION");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section or end of file
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                        // FORMAT: i s e
+                          // (genomic element type identifier, start, end)
+                        int i, s, e;
+                        istringstream iss(line);
+                        iss >> sub;
+                        sub.erase(0, 1); // erasing leading "g"
+                        i = atoi(sub.c_str());
+                        iss >> sub;
+                        s = (int) atof(sub.c_str()) - 1; // start; internally, the chromosome
+                          // starts at position 0
+                        iss >> sub;
+                        e = (int) atof(sub.c_str()) - 1; // internal start is at 0
+                        chr.push_back(genomic_element(i, s, e));
+                    } // end of line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next input section or end of file
+            } // end of chromosome organization section
+
+          // recombination rate section
+          else if (line.find("RECOMBINATION RATE") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#RECOMBINATION RATE");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section or end of file
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: x r
+                        // (interval end, rec rate in events per bp)
+                      int x; double r;
+                      istringstream iss(line);
+                      iss >> sub;
+                      x = (int) atof(sub.c_str()) - 1; // internal start is at 0
+                      iss >> sub;
+                      r = atof(sub.c_str());
+                      chr.rec_x.push_back(x); //
+                      chr.rec_r.push_back(r);
+                    } // end of if line is not empty
+                  get_line(infile, line); } }
+
+          // gene conversion section
+          else if (line.find("GENE CONVERSION") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#GENE CONVERSION");
+              while (line.find('#') == string::npos && !infile.eof())
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: G_f G_l
+                        // (gene conversion fraction, average stretch length in bp)
+                      istringstream iss(line);
+                      iss >> sub;
+                      chr.G_f = atof(sub.c_str());
+                      iss >> sub;
+                      chr.G_l = atof(sub.c_str());
+                    } // end of if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next input section or end of file
+            } // end of gene conversion section
+
+          // generations
+          else if (line.find("GENERATIONS") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#GENERATIONS");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section or end of file
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      istringstream iss(line);
+                      iss >> sub;
+                      T = (int)atof(sub.c_str());
+                    } // if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next input section or end of file
+            } // end of generations
+
+          // demography and structure section
+          else if (line.find("DEMOGRAPHY AND STRUCTURE") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#DEMOGRAPHY AND STRUCTURE");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section or end of file
+                {
+                  if (line.length() > 0) // if line is not emtpy
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: t c s
+                        // (time, event_type, event_parameters)
+                      int t; char c;
+                      vector<string> s;
+                      istringstream iss(line);
+                      iss >> sub;
+                      t = (int)atof(sub.c_str());
+                      iss >> sub;
+                      c = sub.at(0); // event type can be P, N, M, S, or E
+                      while (iss >> sub) // while there are more entries on that line
+                        {
+                          s.push_back(sub.c_str()); // adding event parameters one by one
+                        } // end of line reached
+                      E.insert(pair<int,event>(t,event(c, s))); // add demography and structure
+                        // event; note that time t is the key, and the collection is a multimap
+                    } // end of if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next input section or end of file
+            } // end of demography and structure section
+
+          // output section
+          else if (line.find("OUTPUT") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#OUTPUT");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section or end of file
+                {
+                  if (line.length() > 0)  // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: t c s
+                        // (time, event_type, event_paramaters)
+                      int t; char c; vector<string> s;
+                      istringstream iss(line);
+                      iss >> sub;
+                      t = (int)atof(sub.c_str());
+                      iss >> sub;
+                      c = sub.at(0); // envent type can be A, R, F
+                      while (iss >> sub) // while there are more entries on that line
+                        {
+                          s.push_back(sub.c_str()); // adding event parameters one by one
+                        } // end of line reached
+                      O.insert(pair<int,event>(t,event(c, s))); // add ouptut event; note that
+                        // time is the key, and the collection is a multimap
+                    } // end of if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next input section or end of file
+            } // end of output section
+
+            // predetermined mutations
+            else if (line.find("PREDETERMINED MUTATIONS") != string::npos)
+              {
+                get_line(infile, line);
+                parameters.push_back("#PREDETERMINED MUTATIONS");
+                while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                  // input section or end of file
+                  {
+                    if (line.length() > 0) // if line is not empty
+                      {
+                        parameters.push_back(line);
+                        // FORMAT: time t x i nAA nAa l [P p]
+                          // (time, type, position, subpopulation, number of homozygous carriers,
+                          // number of heterozygous carriers, linkage-equilibrium flag, [partial
+                          // selective sweep: final frequency])
+                        int time, t, x, i, nAA, nAa;
+                        char l; // 'e' for linkage equilibrium, 'd' for linkage disequilibrium
+                        float p;
+                        istringstream iss(line);
+
+                        iss >> sub;
+                        time = (int)atof(sub.c_str());
+                        iss >> sub;
+                        sub.erase(0, 1); // erasing leading "m"
+                        t = atoi(sub.c_str()); // mutation type
+                        iss >> sub;
+                        x = (int)atof(sub.c_str()) - 1; // position; internally starting at 0
+                        iss >> sub;
+                        sub.erase(0, 1); // erasing leading "p"
+                        i = atoi(sub.c_str()); // subpopulation
+                        iss >> sub;
+                        nAA  = (int)atof(sub.c_str()); // number of homozygous carriers
+                        iss >> sub;
+                        nAa  = (int)atof(sub.c_str()); // number of heterozygous carriers
+                        iss >> sub;
+                        l = sub.at(0); // linkage information ("e" for LE, or "d" for LD)
+                        introduced_mutation M(t, x, i, nAA, nAa, l);
+                        IM.insert(pair<int,introduced_mutation>(time, M)); // time is the key;
+                          // multiple events (mutations) can be associated with the same time
 		      
-		      int i; vector<int> m; vector<double> g; istringstream iss(line);
-		      iss >> sub; sub.erase(0,1); i = atoi(sub.c_str());
-		      while(iss >> sub) 
-			{ 
-			  sub.erase(0,1);
-			  m.push_back(atoi(sub.c_str())); iss >> sub;
-			  g.push_back(atof(sub.c_str()));
-			}
-
-		      if(chr.genomic_element_types.count(i)>0) 
-			{  
-			  cerr << "ERROR (initialize): genomic element type "<< i << " already defined" << endl; exit(1);
-			}
-
-		      chr.genomic_element_types.insert(pair<int,genomic_element_type>(i,genomic_element_type(m,g)));
-		    } get_line(infile,line); } }
-	  
-	  else if(line.find("CHROMOSOME ORGANIZATION") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#CHROMOSOME ORGANIZATION");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-
-		      // FORMAT: i s e (genomic element type identifier, start, end)
-		      
-		      int i,s,e; istringstream iss(line);
-		      iss >> sub; sub.erase(0,1); i = atoi(sub.c_str());
-		      iss >> sub; s = (int)atof(sub.c_str())-1;
-		      iss >> sub; e = (int)atof(sub.c_str())-1;
-		      chr.push_back(genomic_element(i,s,e));
-		    } get_line(infile,line); } }
-
-	  else if(line.find("RECOMBINATION RATE") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#RECOMBINATION RATE");
-	       while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-
-		      // FORMAT: x r (interval end, rec rate in events per bp)
-
-		      int x; double r; istringstream iss(line);
-		      iss >> sub; x = (int)atof(sub.c_str())-1;
-		      iss >> sub; r = atof(sub.c_str());
-		      chr.rec_x.push_back(x); chr.rec_r.push_back(r);
-		    } get_line(infile,line); } }
-
-	  else if(line.find("GENE CONVERSION") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#GENE CONVERSION");
-	       while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-
-		      // FORMAT: G_f G_l (gene conversion fraction, average stretch length in bp)
-
-		      istringstream iss(line);
-		      iss >> sub; chr.G_f = atof(sub.c_str());
-		      iss >> sub; chr.G_l = atof(sub.c_str());
-		    } get_line(infile,line); } }
-
-	  else if(line.find("GENERATIONS") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#GENERATIONS");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-		      istringstream iss(line); iss >> sub;  T = (int)atof(sub.c_str());
-		    }
-		  get_line(infile,line); } }
-
-	  else if(line.find("DEMOGRAPHY AND STRUCTURE") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#DEMOGRAPHY AND STRUCTURE");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-
-		      // FORMAT: t event_type event_parameters
-
-		      int t; char c; vector<string> s; istringstream iss(line); 
-		      iss >> sub; t = (int)atof(sub.c_str());
-		      iss >> sub; c = sub.at(0);
-
-		      while(iss >> sub) { s.push_back(sub.c_str()); }
-		      E.insert(pair<int,event>(t,event(c,s)));
-		    }
-		  get_line(infile,line); } }
-
-	  else if(line.find("OUTPUT") != string::npos) { get_line(infile,line); 
-	    parameters.push_back("#OUTPUT");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-
-		      // FORMAT: t event_type event_paramaters
-
-		      int t; char c; vector<string> s; istringstream iss(line); 
-		      iss >> sub; t = (int)atof(sub.c_str());
-		      iss >> sub; c = sub.at(0);
-
-		      while(iss >> sub) { s.push_back(sub.c_str()); }
-		      O.insert(pair<int,event>(t,event(c,s)));
-		    }
-		  get_line(infile,line); } }
-
-	  else if(line.find("PREDETERMINED MUTATIONS") != string::npos) { get_line(infile,line);
-	    parameters.push_back("#PREDETERMINED MUTATIONS");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
-		    {
-		      parameters.push_back(line);
-
-		      // FORMAT: t type x i nAA nAa [P <freq>]
-
-		      istringstream iss(line); 
-
-		      iss >> sub; int time = (int)atof(sub.c_str());
-		      iss >> sub; sub.erase(0,1); int t = atoi(sub.c_str());
-		      iss >> sub; int x    = (int)atof(sub.c_str())-1;
-		      iss >> sub; sub.erase(0,1); int i = atoi(sub.c_str());
-		      iss >> sub; int nAA  = (int)atof(sub.c_str());
-		      iss >> sub; int nAa  = (int)atof(sub.c_str());
-
-		      introduced_mutation M(t,x,i,nAA,nAa);
-
-		      IM.insert(pair<int,introduced_mutation>(time,M));
-		      
-		      while(iss >> sub) 
-			{ 
-			  if(sub.find('P')!=string::npos) 
-			    {
-			      iss >> sub; float p = atof(sub.c_str());
-			      PS.push_back(partial_sweep(t,x,p));
-			    }
-			}
-		    }
-		  get_line(infile,line); } }
-
-	  else if(line.find("SEED") != string::npos) { get_line(infile,line);
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
+                        while (iss >> sub) // read final sweep frequency if present
+                          {
+                            if (sub.find('P') != string::npos) // if there is a 'P' in what remains
+                              {
+                                iss >> sub;
+                                float p = atof(sub.c_str()); // assign the final frequency
+                                PS.push_back(partial_sweep(t, x, p)); // time, position, final
+                                  // frequency
+                              } // end of if there is a 'P' left
+                          } // end of reading final sweep frequency
+                      } // end of if line is empty
+                    get_line(infile, line);
+                  } // end of while not hitting next input section or end of file
+              } // end of predetermined mutations section
+            // TODO: GO ON HERE. Improve format and check for correct handling of new input
+              // sections.
+	  else if (line.find("SEED") != string::npos) { get_line(infile, line);
+	      while (line.find('#') == string::npos && !infile.eof()) {
+		  if (line.length() > 0)
 		    {
 		      istringstream iss(line); iss >> sub;  seed = atoi(sub.c_str());
 		    }
-		  get_line(infile,line); } }
+		  get_line(infile, line); } }
 
-	  else if(line.find("INITIALIZATION") != string::npos) { get_line(infile,line);
+	  else if (line.find("INITIALIZATION") != string::npos) { get_line(infile, line);
 	    parameters.push_back("#INITIALIZATION");
-	      while(line.find('#') == string::npos && !infile.eof()) {
-		  if(line.length()>0)
+	      while (line.find('#') == string::npos && !infile.eof()) {
+		  if (line.length() > 0)
 		    {
 		      parameters.push_back(line);
 
 		      istringstream iss(line); iss >> sub;  
 		      initialize_from_file(P,sub.c_str(),chr);
 		    }
-		  get_line(infile,line); } }	  
+		  get_line(infile, line); } }	  
 	}
-      else { get_line(infile,line); }
-    }
+      else
+        { get_line(infile, line); }
+    // TODO: Introduce a check for the presence of lines that start with # and have not been
+      // handled as intended.
+    } // end of while not hitting end of file
+
 
   // initialize chromosome
 
@@ -2711,7 +2914,7 @@ void initialize(population& P, char* file, chromosome& chr, int &T, multimap<int
 
   // parameter output
 
-  for(int i=0; i<P.parameters.size(); i++) { cout << parameters[i] << endl; }
+  for (int i=0; i<P.parameters.size(); i++) { cout << parameters[i] << endl; }
 }
 
 
@@ -2721,33 +2924,43 @@ int main(int argc,char *argv[])
 {
   // initialize simulation parameters
 
-  if(argc<=1) { cerr << "usage: slim <parameter file>" << endl; exit(1); } 
+  if (argc <= 1)
+    {
+      cerr << "usage: slim <parameter file>" << endl;
+      exit(1);
+    }
 
   char* input_file = argv[1];
-    // GO ON HERE.
+
   check_input_file(input_file); // calls method implemented above
 
   int T; // maximum number of generations
   chromosome chr; // chromosome
 
-  population P; map<int,subpopulation>::iterator itP;
+  population P;
+  map<int, subpopulation>::iterator itP;
 
   P.parameters.push_back("#INPUT PARAMETER FILE");
   P.parameters.push_back(input_file);
 
   // demography and structure events
 
-  multimap<int,event> E; 
+  multimap<int,event> E; // multiple elements can have identical keys, where the key is time;
+    // events are P (adding new subpopulation), N (changing population size), M (chaning
+    // migration rate), S (changing selfing rate), E (changing environment)
   multimap<int,event>::iterator itE;
 
   // output events (time, output)
   
-  multimap<int,event> O; 
+  multimap<int,event> O; // multiple elements can have identical keys, where the key is time;
+    // events are A (output state of entire population), R (output random sample from sub-
+    // population), F (output list of all fixed mutations)
   multimap<int,event>::iterator itO;
 
   // user-defined mutations that will be introduced (time, mutation)
 
-  multimap<int,introduced_mutation> IM; 
+  multimap<int,introduced_mutation> IM; // multiple elements can have identical keys, where the key
+    // is time
   multimap<int,introduced_mutation>::iterator itIM;
 
   // tracked mutation-types
@@ -2757,26 +2970,26 @@ int main(int argc,char *argv[])
   // mutations undergoing partial sweeps
 
   vector<partial_sweep> PS;
-
-  initialize(P,input_file,chr,T,E,O,IM,PS,P.parameters);
+  // GO ON HERE: understand, and extend.
+  initialize(P, input_file, chr, T, E, O, IM, PS, P.parameters);
  
   // evolve over t generations
 
-  for(int g=1; g<=T; g++)
+  for (int g=1; g<=T; g++)
     { 
       // execute demographic and substructure events in this generation 
 
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeE = E.equal_range(g);
-      for(itE = rangeE.first; itE != rangeE.second; itE++) { P.execute_event(itE->second,g,chr,TM); }
+      for (itE = rangeE.first; itE != rangeE.second; itE++) { P.execute_event(itE->second,g,chr,TM); }
    
       // evolve all subpopulations
 
-      for(itP = P.begin(); itP != P.end(); itP++) { P.evolve_subpopulation(itP->first,chr); }     
+      for (itP = P.begin(); itP != P.end(); itP++) { P.evolve_subpopulation(itP->first,chr); }     
             
       // introduce user-defined mutations
         
       pair<multimap<int,introduced_mutation>::iterator,multimap<int,introduced_mutation>::iterator> rangeIM = IM.equal_range(g);
-      for(itIM = rangeIM.first; itIM != rangeIM.second; itIM++) {
+      for (itIM = rangeIM.first; itIM != rangeIM.second; itIM++) {
           // test
           // P.print_all(chr);
           
@@ -2789,11 +3002,11 @@ int main(int argc,char *argv[])
       // execute output events
 
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeO = O.equal_range(g);
-      for(itO = rangeO.first; itO != rangeO.second; itO++) { P.execute_event(itO->second,g,chr,TM); }
+      for (itO = rangeO.first; itO != rangeO.second; itO++) { P.execute_event(itO->second,g,chr,TM); }
 
       // track particular mutation-types and set s=0 for partial sweeps when completed
       
-      if(TM.size()>0 || PS.size()>0) { P.track_mutations(g,TM,PS,chr); }
+      if (TM.size()>0 || PS.size()>0) { P.track_mutations(g,TM,PS,chr); }
 
       // swap generations
 

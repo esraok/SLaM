@@ -2,13 +2,20 @@
 / modified from input_example_1.txt to reach shorter computation time
 
 #MUTATION TYPES  
-m1 0.5 f 0.0 / neutral
+m1 0.5 f 0.0 / neutral, no dominance
+m2 0.0 e -0.01 / deleterious, recessive
+m3 1.0 e 0.02 / advantageous, dominant
+
+#FITNESS INTERACTION
+a
 
 #MUTATION RATE 
 1e-7 
 
 #GENOMIC ELEMENT TYPES 
-g1 m1 1.0 / only one type comprising the neutral mutations
+/g1 m1 1.0 / only one type comprising the neutral mutations
+g1 m1 0.6 m2 0.2 m3 0.2 / one type comprising neutral, delederious, and initially advantageous mutations
+
 
 #CHROMOSOME ORGANIZATION 
 g1 1 100000 / uniform chromosome of length 100 kb
@@ -21,7 +28,12 @@ g1 1 100000 / uniform chromosome of length 100 kb
 
 #DEMOGRAPHY AND STRUCTURE 
 1 P p1 100 / one population of 500 individuals
-100 E p1 e3
+100 E p1 e1
+200 E p1 e2
+
+/#ENVIRONMENTS
+/e1 m2 0.5 1.0 m3 0.5 0.5
+/e2 m3 0.5 -1.
 
 #OUTPUT 
 200 R p1 10 / output sample of 10 genomes
