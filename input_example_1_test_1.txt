@@ -28,12 +28,12 @@ g1 1 100000 / uniform chromosome of length 100 kb
 
 #DEMOGRAPHY AND STRUCTURE 
 1 P p1 100 / one population of 500 individuals
-100 E p1 e1
-200 E p1 e2
+100 E p1 e1 / assign environment 1 to subpopulation 1
+200 E p1 e2 / assign environment 2 to subpopulation 2
 
-/#ENVIRONMENTS
-/e1 m2 0.5 1.0 m3 0.5 0.5
-/e2 m3 0.5 -1.
+#ENVIRONMENTS
+e1 m2 0.5 1.0 m3 0.5 0.5
+e2 m3 0.5 -1.
 
 #OUTPUT 
 200 R p1 10 / output sample of 10 genomes

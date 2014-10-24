@@ -1902,12 +1902,12 @@ void check_input_file(char* file)
 
           else if (line.find("ENVIRONMENTS") != string::npos)
             {
-              cout << "Entering ENVIRONMENTS";
+              cout << "Entering ENVIRONMENTS" << endl;
               get_line(infile, line);
               while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
                 // section or end of file
                 {
-                  cout << "ENVIRONMENTS: while not hitting next section or end of file.";
+                  cout << "ENVIRONMENTS: while not hitting next section or end of file." << endl;
                   if (line.length() > 0) // line is not empty
                     {
                       int good = 1;
@@ -2258,6 +2258,7 @@ void check_input_file(char* file)
           // 'output section
           else if (line.find("OUTPUT") != string::npos)
             {
+              cout << "reading output specs" << endl; // test
               get_line(infile, line);
               while (line.find('#') == string::npos && !infile.eof())
                 { // while not hitting next section or end of file
@@ -2816,84 +2817,102 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                 } // end of while not hitting next input section or end of file
             } // end of output section
 
-            // predetermined mutations
-            else if (line.find("PREDETERMINED MUTATIONS") != string::npos)
-              {
-                get_line(infile, line);
-                parameters.push_back("#PREDETERMINED MUTATIONS");
-                while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
-                  // input section or end of file
-                  {
-                    if (line.length() > 0) // if line is not empty
-                      {
-                        parameters.push_back(line);
-                        // FORMAT: time t x i nAA nAa l [P p]
-                          // (time, type, position, subpopulation, number of homozygous carriers,
-                          // number of heterozygous carriers, linkage-equilibrium flag, [partial
-                          // selective sweep: final frequency])
-                        int time, t, x, i, nAA, nAa;
-                        char l; // 'e' for linkage equilibrium, 'd' for linkage disequilibrium
-                        float p;
-                        istringstream iss(line);
+          // predetermined mutations
+          else if (line.find("PREDETERMINED MUTATIONS") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#PREDETERMINED MUTATIONS");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section or end of file
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: time t x i nAA nAa l [P p]
+                        // (time, type, position, subpopulation, number of homozygous carriers,
+                        // number of heterozygous carriers, linkage-equilibrium flag, [partial
+                        // selective sweep: final frequency])
+                      int time, t, x, i, nAA, nAa;
+                      char l; // 'e' for linkage equilibrium, 'd' for linkage disequilibrium
+                      float p;
+                      istringstream iss(line);
 
-                        iss >> sub;
-                        time = (int)atof(sub.c_str());
-                        iss >> sub;
-                        sub.erase(0, 1); // erasing leading "m"
-                        t = atoi(sub.c_str()); // mutation type
-                        iss >> sub;
-                        x = (int)atof(sub.c_str()) - 1; // position; internally starting at 0
-                        iss >> sub;
-                        sub.erase(0, 1); // erasing leading "p"
-                        i = atoi(sub.c_str()); // subpopulation
-                        iss >> sub;
-                        nAA  = (int)atof(sub.c_str()); // number of homozygous carriers
-                        iss >> sub;
-                        nAa  = (int)atof(sub.c_str()); // number of heterozygous carriers
-                        iss >> sub;
-                        l = sub.at(0); // linkage information ("e" for LE, or "d" for LD)
-                        introduced_mutation M(t, x, i, nAA, nAa, l);
-                        IM.insert(pair<int,introduced_mutation>(time, M)); // time is the key;
-                          // multiple events (mutations) can be associated with the same time
-		      
-                        while (iss >> sub) // read final sweep frequency if present
-                          {
-                            if (sub.find('P') != string::npos) // if there is a 'P' in what remains
-                              {
-                                iss >> sub;
-                                float p = atof(sub.c_str()); // assign the final frequency
-                                PS.push_back(partial_sweep(t, x, p)); // time, position, final
-                                  // frequency
-                              } // end of if there is a 'P' left
-                          } // end of reading final sweep frequency
-                      } // end of if line is empty
-                    get_line(infile, line);
-                  } // end of while not hitting next input section or end of file
-              } // end of predetermined mutations section
-            // TODO: GO ON HERE. Improve format and check for correct handling of new input
-              // sections.
-	  else if (line.find("SEED") != string::npos) { get_line(infile, line);
-	      while (line.find('#') == string::npos && !infile.eof()) {
-		  if (line.length() > 0)
-		    {
-		      istringstream iss(line); iss >> sub;  seed = atoi(sub.c_str());
-		    }
-		  get_line(infile, line); } }
+                      iss >> sub;
+                      time = (int)atof(sub.c_str());
+                      iss >> sub;
+                      sub.erase(0, 1); // erasing leading "m"
+                      t = atoi(sub.c_str()); // mutation type
+                      iss >> sub;
+                      x = (int)atof(sub.c_str()) - 1; // position; internally starting at 0
+                      iss >> sub;
+                      sub.erase(0, 1); // erasing leading "p"
+                      i = atoi(sub.c_str()); // subpopulation
+                      iss >> sub;
+                      nAA  = (int)atof(sub.c_str()); // number of homozygous carriers
+                      iss >> sub;
+                      nAa  = (int)atof(sub.c_str()); // number of heterozygous carriers
+                      iss >> sub;
+                      l = sub.at(0); // linkage information ("e" for LE, or "d" for LD)
+                      introduced_mutation M(t, x, i, nAA, nAa, l);
+                      IM.insert(pair<int,introduced_mutation>(time, M)); // time is the key;
+                        // multiple events (mutations) can be associated with the same time
 
-	  else if (line.find("INITIALIZATION") != string::npos) { get_line(infile, line);
-	    parameters.push_back("#INITIALIZATION");
-	      while (line.find('#') == string::npos && !infile.eof()) {
-		  if (line.length() > 0)
-		    {
-		      parameters.push_back(line);
+                      while (iss >> sub) // read final sweep frequency if present
+                        {
+                          if (sub.find('P') != string::npos) // if there is a 'P' in what remains
+                            {
+                              iss >> sub;
+                              float p = atof(sub.c_str()); // assign the final frequency
+                              PS.push_back(partial_sweep(t, x, p)); // time, position, final
+                                // frequency
+                            } // end of if there is a 'P' left
+                        } // end of reading final sweep frequency
+                    } // end of if line is empty
+                  get_line(infile, line);
+                } // end of while not hitting next input section or end of file
+            } // end of predetermined mutations section
 
-		      istringstream iss(line); iss >> sub;  
-		      initialize_from_file(P,sub.c_str(),chr);
-		    }
-		  get_line(infile, line); } }	  
-	}
+          // seed section
+          else if (line.find("SEED") != string::npos)
+            {
+              get_line(infile, line);
+              while (line.find('#') == string::npos && !infile.eof())
+                {
+                  if (line.length() > 0)
+                    {
+                      istringstream iss(line);
+                      iss >> sub;
+                      seed = atoi(sub.c_str());
+                    }
+                  get_line(infile, line);
+                }
+            } // end of seed section
+
+          // initialization section
+          else if (line.find("INITIALIZATION") != string::npos)
+            {
+              get_line(infile, line);
+              parameters.push_back("#INITIALIZATION");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // section or end of file
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      istringstream iss(line);
+                      iss >> sub;
+                      initialize_from_file(P, sub.c_str(), chr);
+                    } // end of if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next section or end of file
+            } // end of initialization section
+        } // not hitting start of an input section
       else
-        { get_line(infile, line); }
+        {
+          get_line(infile, line);
+          cout << "getting new line:" << endl;
+          cout << line << endl << endl;
+        }
     // TODO: Introduce a check for the presence of lines that start with # and have not been
       // handled as intended.
     } // end of while not hitting end of file
@@ -2932,6 +2951,7 @@ int main(int argc,char *argv[])
 
   char* input_file = argv[1];
 
+  cout << "Starting 'check_input_file()" << endl; // test
   check_input_file(input_file); // calls method implemented above
 
   int T; // maximum number of generations
