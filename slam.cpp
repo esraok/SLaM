@@ -106,27 +106,28 @@ public:
     // assignments can change over time. Change s to be an array of length equal to the number of
     // environment types.
 
+  // basic constructor
   mutation(void) { ; }
 
+  // alternative constructor
   mutation(int T, int X, float S) 
   { 
     t = T;
     x = X;
     s = S; // TODO: Will become an array of floats
   }
-};
+}; // end of class mutation
 
 
-bool operator< (const mutation &M1,const mutation &M2)
+bool operator< (const mutation &M1, const mutation &M2)
 {
   return M1.x < M2.x;
 };
 
 
-bool operator== (const mutation &M1,const mutation &M2) //
+bool operator== (const mutation &M1, const mutation &M2) //
 {
-  return (M1.x == M2.x && M1.t == M2.t && M1.s == M2.s); // TODO: Adjust to account for the fact
-    // that s will be an array of doubles of length equal to the number of environment types.
+  return (M1.x == M2.x && M1.t == M2.t && M1.s == M2.s);
 };
 
 
@@ -168,14 +169,15 @@ public:
           exit(1);
         }
     }
-};
+}; // end of class event
 
 
 
 
 class mutation_type
 {
-  // a mutation type is specified by the DFE and the dominance coefficient
+  // a mutation type is specified by the DFE and the dominance coefficient. These parameters
+  // implicitly define the reference environment.
   //
   // DFE options: f: fixed (s) 
   //              e: exponential (mean s)
@@ -197,9 +199,15 @@ public:
 
     string s = "fge";
 
-    if (s.find(d)==string::npos)  { cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1); }
-    if (p.size()==0)              { cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1); }
-  }
+    if (s.find(d) == string::npos)
+      {
+        cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1);
+      }
+    if (p.size() == 0)
+      {
+        cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1);
+      }
+  } // end of constructor
 
   float draw_s()
   {
@@ -212,9 +220,36 @@ public:
               // gsl_ran_exponential returns negative values.
       default: exit(1);
       }
-  }
-};
+  } // end of draw_s()
+}; // end of class mutation_type
 
+class environment
+{
+  // an environment reassigns a dominance coefficient and modifies the (mean) selection coefficient
+    // with respect to the reference environment and for a specified set of mutation types
+
+public:
+
+  map< int,vector<double> > h; // dominance coefficients for each mutation-type that is affected in
+    // this environment relative to the reference environment; the key is the mutation-type
+    // identifier
+  map< int,vector<double> > smodif; // modifier of (mean) selection coefficient for each mutation-
+    // type that is affected in this environment relative to the reference environment; the key is
+    // the mutation-type identifier
+
+  // constructor
+  environment(map< int,vector<double> >& H, map< int,vector<double> >& SMODIF)
+  {
+
+    h = H;
+    smodif = SMODIF;
+
+    if ( h.size() != smodif.size())
+      { exit(1); }
+
+  } // end of constructor
+
+}; // end of class environment
 
 class genomic_element
 {
@@ -222,10 +257,13 @@ class genomic_element
 
 public:
 
-  int i,s,e;
+  int i, s, e;
 
-  genomic_element(int I, int S, int E) { i = I; s = S; e = E; }
-};
+  // constructor
+  genomic_element(int I, int S, int E)
+    { i = I; s = S; e = E; }
+
+}; // end of class genomic_element
 
 
 class genomic_element_type
@@ -248,13 +286,17 @@ public:
     m = M;
     g = G;  
 
-    if (m.size() != g.size()) { exit(1); }
-    double A[m.size()]; for (int i=0; i<m.size(); i++) { A[i] = g[i]; }
-    LT = gsl_ran_discrete_preproc(G.size(),A);
+    if (m.size() != g.size())
+      { exit(1); }
+    double A[m.size()];
+    for (int i = 0; i < m.size(); i++)
+      { A[i] = g[i]; }
+    LT = gsl_ran_discrete_preproc(G.size(), A);
   }
 
-  int draw_mutation_type() { return m[gsl_ran_discrete(rng,LT)]; }
-};
+  int draw_mutation_type()
+    { return m[gsl_ran_discrete(rng, LT)]; }
+}; // end of class genomic_element_type
 
 
 
@@ -372,7 +414,7 @@ public:
 
     return r;
   }
-};
+}; // end of class chromosome
 
 
 class polymorphism
@@ -409,7 +451,7 @@ public:
     float h = chr.mutation_types.find(t)->second.h;
     cout << "m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl; 
   }
-};
+}; // end of class polymorphism
 
 
 class substitution
@@ -434,7 +476,7 @@ public:
     float h = chr.mutation_types.find(t)->second.h;
     cout << " m" << t << " " << x+1 << " " << s << " " << h << " "<< g << endl; 
   }
-};
+}; // end of class substitution
 
 
 class introduced_mutation : public mutation // inheriting from mutation
@@ -472,10 +514,16 @@ class partial_sweep
   {
     t = T; x = X; p = P;
   }
-};
+}; // end of class introduced_mutation
 
 
-class genome : public vector<mutation> { };
+class genome : public vector<mutation>
+{
+  // a genome is a vector of mutations
+}; // end of class genome
+
+
+// top-level function
 
 genome fixed(genome& G1, genome& G2)
 {
@@ -521,8 +569,10 @@ genome fixed(genome& G1, genome& G2)
       }
 
   return G;
-}
+} // end of method fixed()
 
+
+// top-level method
 
 genome polymorphic(genome& G1, genome& G2)
 {
@@ -576,7 +626,7 @@ genome polymorphic(genome& G1, genome& G2)
   while (g1 != g1_max) { G.push_back(*g1); g1++; }
 
   return G;
-}
+} // end of method polymorphic()
 
 
 class subpopulation
@@ -593,23 +643,28 @@ public:
   int    N; // population size  
   double S; // selfing fraction
 
-  vector<genome> G_parent;
-  vector<genome> G_child;
+  vector<genome> G_parent; // parent population
+  vector<genome> G_child; // offspring population
 
   map<int,double> m; // m[i]: fraction made up of migrants from subpopulation i per generation
  
-
+  // constructor
   subpopulation(int n)
   {
     N = n;
     S = 0.0;
     G_parent.resize(2*N); G_child.resize(2*N);
-    double A[N]; for (int i=0; i<N; i++) { A[i] = 1.0; }
-    LT = gsl_ran_discrete_preproc(N,A);
+    double A[N];
+    for (int i = 0; i < N; i++)
+      { A[i] = 1.0; }
+    LT = gsl_ran_discrete_preproc(N, A); // to draw individuals at random, which uniform weights
+  } // end of constructor
+
+
+  int draw_individual()
+  {
+    return gsl_ran_discrete(rng, LT);
   }
-
-
-  int draw_individual() { return gsl_ran_discrete(rng,LT); }
 
 
   void update_fitness(chromosome& chr)
@@ -617,33 +672,53 @@ public:
     // calculate fitnesses in parent population and create new lookup table
     
     gsl_ran_discrete_free(LT);
-    double A[(int)(G_parent.size()/2)]; for (int i=0; i<(int)(G_parent.size()/2); i++) { A[i] = W(2*i,2*i+1,chr); }
-    LT = gsl_ran_discrete_preproc((int)(G_parent.size()/2),A);
-  }
+    double A[(int)(G_parent.size()/2)]; // individuals are diploid
+    for (int i = 0; i < (int)(G_parent.size()/2); i++)
+      {
+        A[i] = W(2*i, 2*i+1, chr);
+      }
+    LT = gsl_ran_discrete_preproc((int)(G_parent.size()/2), A); // assigning weights to individuals
+      // that correspond to their (abolute) fitness
+  } // end of method update_fitness()
 
 
   double W(int i, int j, chromosome& chr)
   {
-    // calculate the fitness of the individual constituted by genomes i and j in the parent population
+    // calculate the fitness of the individual constituted by genomes i and j in the parent
+      // population, where i and j are indices to the vector population
     
     double w = 1.0;
 
-   
-    vector<mutation>::iterator pi = G_parent[i].begin();
+    // a genome is a vector of mutations
+    vector<mutation>::iterator pi = G_parent[i].begin(); // iterator pointing to the first mutation
+      // in parent i (i.e. genome i of the parental population)
     vector<mutation>::iterator pj = G_parent[j].begin();
 
-    vector<mutation>::iterator pi_max = G_parent[i].end();
+    vector<mutation>::iterator pi_max = G_parent[i].end(); // iterator pointing to the last
+      // mutation in parent i (i.e. genome i of the parental population)
     vector<mutation>::iterator pj_max = G_parent[j].end();
 
-    while (w>0 && (pi != pi_max || pj != pj_max))
+    while (w > 0 && (pi != pi_max || pj != pj_max)) // while fitness is strictly positive, and
+      // at least one parent has mutations not jet visited
       {
-	// advance i while pi.x < pj.x
 
-	while (pi != pi_max && (pj == pj_max || (*pi).x < (*pj).x))
-	  {
-          // changed by SA: additive instead of mulitplicative fitness interaction
-          // if ((*pi).s != 0) { w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s); }
-          if ((*pi).s != 0) { w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s; }
+        // advance i while pi.x < pj.x (x is the physical position)
+        while (pi != pi_max && (pj == pj_max || (*pi).x < (*pj).x)) // while there are unvisited
+          // mutations left in genome i and (there are no unvisited mutations left in genome j or
+          // the position of the current mutation in genome i is smaller than the current mutation
+          // in genome j)
+          // TODO: GO ON HERE. Differentiate between 'a'(dditive) and 'm'(multiplicative) fitness
+            // interaction scheme. Introduce environment specific fitnesses.
+          {
+            // changed by SA: additive instead of mulitplicative fitness interaction
+            // if ((*pi).s != 0) // if this mutation in genome i is not neutral
+            //  {
+            //    w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s);
+            //  } // end of if this mutation in i is not neutral
+            if ((*pi).s != 0) // if this mutation in individual i is not neutral
+              {
+                w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s;
+              }
           pi++;
 	  }
 	   
@@ -717,14 +792,14 @@ public:
     if (w<0) { w = 0.0; }
 
     return w;
-  }
+  } // end of method W()
 
   void swap()
   {
     G_child.swap(G_parent);
     G_child.resize(2*N);
   }
-};
+}; // end of class subpopulation
 
 
 class population : public map<int, subpopulation>
@@ -1564,8 +1639,6 @@ public:
 }; // end of class 'population'
 
 
-
-
 void get_line(ifstream& infile, string& line)
 {
   getline(infile, line);
@@ -1573,7 +1646,7 @@ void get_line(ifstream& infile, string& line)
         // lines are interpreted as comments
   line.erase(0, line.find_first_not_of(' ')); // remove leading whitespaces
   line.erase(line.find_last_not_of(' ') + 1); // remove trailing whitespaces
-};
+} // end of method get_line()
 
 
 void input_error(int type, string line)
@@ -1771,7 +1844,7 @@ void input_error(int type, string line)
     } // end of environment
 
   exit(1);
-};
+} // end of method input_error()
 
 
 void check_input_file(char* file)
@@ -2447,9 +2520,12 @@ void check_input_file(char* file)
             } // end of 'predetermined mutations' section
           else // if none of the intended settings applies
             { input_error(-1, line); } // unknown parameter (section)
-        } // end of if this line starts a new parameter section; else: read next line
+        } // end of if this line starts a new parameter section; this line did not start a new
+            // input section; else: read next line
       else
-        { get_line(infile, line); }
+        {
+          get_line(infile, line);
+        }
     } // end of while not hitting end of file 'infile'; end of file 'infile' now reached
 
   if (mutation_rate != 1)
@@ -2468,7 +2544,7 @@ void check_input_file(char* file)
     { input_error(-2, string()); }
   if (fitness_interaction != 1)
     { input_error(13, string()); }
-}; // end of check_input_file()
+} // end of method check_input_file()
 
 
 void initialize_from_file(population& P, const char* file, chromosome& chr)
@@ -2534,14 +2610,15 @@ void initialize_from_file(population& P, const char* file, chromosome& chr)
     {
       P.it->second.update_fitness(chr);
     }
-};
+} // end of initialize_from_file()
 
 /*
   Initialises the population P using parameter values to be read from file. Initialises chromosome
   chr, as well as demography and structure events E, output events O, user-defined mutations  IM
-  that will be introduced, and mutations PS undergoing partial sweeps.
+  that will be introduced, and mutations PS undergoing partial sweeps. FI denotes the fitness
+  interaction
 */
-void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
+void initialize(population& P, char* file, chromosome& chr, int& T, char& FI, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
 {
   string line; 
   string sub; 
@@ -2589,6 +2666,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
               while (line.find('#') == string::npos && !infile.eof()) // while not hitting new
                 // input section
                 {
+                  cout << "mutation types: " << line << endl; // test
                   if (line.length() > 0) // if line is not empty
                     {
                       parameters.push_back(line);
@@ -2617,16 +2695,39 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                       while (iss >> sub) // there are one or two values to be read
                         {
                           p.push_back(atof(sub.c_str()));
+                          // cout << "iterating over iss >> sub" << endl; // test
                         }
                       chr.mutation_types.insert(pair<int,mutation_type>(i,mutation_type(h, t, p)));
-                    }
+                    } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting new input section
             } // end of mutation types section
 
+          // fitness interaction section
+          else if (line.find("FITNESS INTERACTION") != string::npos)
+            {
+              // cout << "entering fitness interaction (initialize)" << endl; // test
+              get_line(infile, line);
+              parameters.push_back("FITNESS INTERACTION");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section or end of file
+                {
+                  if (line.length() > 0) // if line is not empty
+                    {
+                      parameters.push_back(line);
+                      istringstream iss(line);
+                      iss >> sub; // 'a' for additive; 'm' for multiplicative
+                      FI = sub.at(0);
+                    } // end of if line is not empty
+                  get_line(infile, line);
+                } // end of while not hitting next input section or end of file
+              // cout << "leaving fitness interaction (initialize)" << endl; // test
+            } // end of fitness interaction section
+
           // genomic element types section
           else if (line.find("GENOMIC ELEMENT TYPES") != string::npos)
             {
+              // cout << "entering genomic element types (initialize)" << endl; // test
               get_line(infile, line);
               parameters.push_back("#GENOMIC ELEMENT TYPES");
               while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
@@ -2640,11 +2741,11 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                       int i; vector<int> m; vector<double> g;
                       istringstream iss(line);
                       iss >> sub;
-                      sub.erase(0, 1); // erasing "g"
+                      sub.erase(0, 1); // erasing leading "g"
                       i = atoi(sub.c_str()); // initialising genomic-element-type id
                       while (iss >> sub)
                         { // while there are multiples of two parameters to be read
-                          sub.erase(0, 1); // erasing "m"
+                          sub.erase(0, 1); // erasing leading "m"
                           m.push_back(atoi(sub.c_str())); // initialising mutation-type id
                           iss >> sub;
                           g.push_back(atof(sub.c_str())); // initialising fraction of mutations
@@ -2657,9 +2758,10 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                         }
                       chr.genomic_element_types.insert(pair<int,genomic_element_type>(i,genomic_element_type(m, g))); // m is the vector of mutation types, and g
                           // the vector for fractions they make up of all mutations
-                    }
+                    } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section
+              // cout << "leaving genomic element types (initialize)" << endl; // test
             } // end of genomic element types section
 
           // chromosome organization section
@@ -2689,6 +2791,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                     } // end of line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
+              // cout << "leaving chromosome organization (initialize)" << endl; // test
             } // end of chromosome organization section
 
           // recombination rate section
@@ -2751,7 +2854,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                       istringstream iss(line);
                       iss >> sub;
                       T = (int)atof(sub.c_str());
-                    } // if line is not empty
+                    } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
             } // end of generations
@@ -2785,11 +2888,49 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
+              // cout << "leaving demography and structure (initialize)" << endl; // test
             } // end of demography and structure section
+
+          // environment section
+          else if (line.find("ENVIRONMENTS") != string::npos)
+            {
+              cout << "entering environment (initialize)" << endl; // test
+              get_line(infile, line);
+              parameters.push_back("#ENVIRONMENTS");
+              while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
+                // input section
+                {
+                  if (line.length() > 0) // if line is not emtpy
+                    {
+                      parameters.push_back(line);
+                      // FORMAT: i m1 h1 s-modif1 [m2 h2 s-modif2 ...]
+                        // (identifier, mut type, dominance coeff., modifier of (mean) sel. coeff
+                        // , [mut type, dominance coeff., modifier of (mean) sel. coeff, ...])
+                      int i; vector<int> m; vector<double> h; vector<double> smodif;
+                      istringstream iss(line);
+
+                      iss >> sub;
+                      sub.erase(0, 1); // erasing leading "e"
+                      i = atoi(sub.c_str()); // initialising environemt id
+                      while (iss >> sub)
+                        { // while there are multiples of three parameters to be read
+                            sub.erase(0, 1); // erasing leading "m"
+                            m.push_back(atoi(sub.c_str())); // initialising mutation-type id
+                            iss >> sub;
+                            h.push_back(atof(sub.c_str())); // initialising dominance coefficient
+                            iss >> sub;
+                            smodif.push_back(atof(sub.c_str())); // initialising modifier of
+                              // selection coefficient
+                        } // end of while there are multiples of three parameters to be read
+
+                    } // end of if line is not empty
+                } // end of while not hitting next input section
+            } // end of environment section
 
           // output section
           else if (line.find("OUTPUT") != string::npos)
             {
+              cout << "entering output (initialize)" << endl; // test
               get_line(infile, line);
               parameters.push_back("#OUTPUT");
               while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
@@ -2815,11 +2956,13 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
+              cout << "leaving output (initialize)" << endl; // test
             } // end of output section
 
           // predetermined mutations
           else if (line.find("PREDETERMINED MUTATIONS") != string::npos)
             {
+              // cout << "entering predetermined mutations (initialize)" << endl; // test
               get_line(infile, line);
               parameters.push_back("#PREDETERMINED MUTATIONS");
               while (line.find('#') == string::npos && !infile.eof()) // while not hitting next
@@ -2870,11 +3013,13 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                     } // end of if line is empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
+              // cout << "leaving predetermined mutations (initialize)" << endl; // test
             } // end of predetermined mutations section
 
           // seed section
           else if (line.find("SEED") != string::npos)
             {
+              // cout << "entering seed (initialize)" << endl; // test
               get_line(infile, line);
               while (line.find('#') == string::npos && !infile.eof())
                 {
@@ -2886,6 +3031,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                     }
                   get_line(infile, line);
                 }
+              // cout << "leaving seed (initialize)" << endl; // test
             } // end of seed section
 
           // initialization section
@@ -2906,16 +3052,17 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
                   get_line(infile, line);
                 } // end of while not hitting next section or end of file
             } // end of initialization section
-        } // not hitting start of an input section
+        } // this line was not the start of a new input section
       else
         {
           get_line(infile, line);
           cout << "getting new line:" << endl; // test
-          // TODO: GO ON HERE, testing error (endles loop)
+          // TODO: GO ON HERE, testing error (endless loop)
           cout << line << endl;
         }
     // TODO: Introduce a check for the presence of lines that start with # and have not been
       // handled as intended.
+      // cout << "not hitting end of file" << endl; // test
     } // end of while not hitting end of file
 
 
@@ -2935,8 +3082,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, multimap<int
   // parameter output
 
   for (int i=0; i<P.parameters.size(); i++) { cout << parameters[i] << endl; }
-}
-
+} // end of method initialize()
 
 
 
@@ -2957,6 +3103,7 @@ int main(int argc,char *argv[])
 
   int T; // maximum number of generations
   chromosome chr; // chromosome
+  char FI; // type of fitness interaction ('a' for additive; 'm' for multiplicative)
 
   population P;
   map<int, subpopulation>::iterator itP;
@@ -2984,6 +3131,11 @@ int main(int argc,char *argv[])
     // is time
   multimap<int,introduced_mutation>::iterator itIM;
 
+  // environments (all except the reference environment)
+
+  map<int,environment> EV; // unique keys
+  map<int,environment>::iterator itEV;
+
   // tracked mutation-types
 
   vector<int> TM; 
@@ -2991,17 +3143,21 @@ int main(int argc,char *argv[])
   // mutations undergoing partial sweeps
 
   vector<partial_sweep> PS;
+
   // GO ON HERE: understand, and extend.
-  initialize(P, input_file, chr, T, E, O, IM, PS, P.parameters);
+  initialize(P, input_file, chr, T, FI, E, O, IM, PS, P.parameters);
  
   // evolve over t generations
 
-  for (int g=1; g<=T; g++)
+  for (int g = 1; g <= T; g++)
     { 
       // execute demographic and substructure events in this generation 
 
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeE = E.equal_range(g);
-      for (itE = rangeE.first; itE != rangeE.second; itE++) { P.execute_event(itE->second,g,chr,TM); }
+      for (itE = rangeE.first; itE != rangeE.second; itE++)
+        {
+          P.execute_event(itE->second, g, chr, TM);
+        }
    
       // evolve all subpopulations
 
