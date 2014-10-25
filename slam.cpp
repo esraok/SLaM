@@ -307,6 +307,8 @@ class chromosome : public vector<genomic_element> // class chromosome inherits f
 
 private:
 
+  // look-up tables
+
   gsl_ran_discrete_t* LT_M; // mutation
   gsl_ran_discrete_t* LT_R; // recombination
 
@@ -643,6 +645,8 @@ public:
   int    N; // population size  
   double S; // selfing fraction
 
+  environment E; // environment
+
   vector<genome> G_parent; // parent population
   vector<genome> G_child; // offspring population
 
@@ -658,6 +662,9 @@ public:
     for (int i = 0; i < N; i++)
       { A[i] = 1.0; }
     LT = gsl_ran_discrete_preproc(N, A); // to draw individuals at random, which uniform weights
+
+    // TODO: Assign the reference environment.
+
   } // end of constructor
 
 
@@ -813,7 +820,8 @@ public:
   map<int,subpopulation>::iterator it;
 
   vector<string> parameters;
-
+  // TODO: GO ON HERE. Change to include fitness interaction as argument. Change class
+    // subpopulation accordingly.
   void add_subpopulation(int i, unsigned int N) 
   {
     // add new empty subpopulation i of size N (i is the key of the subpopulation)
@@ -1174,7 +1182,7 @@ public:
 
   void evolve_subpopulation(int i, chromosome& chr)
   {
-    int g1,g2,p1,p2,n_mut_1,n_mut_2;
+    int g1, g2, p1, p2, n_mut_1, n_mut_2;
 
 
     // create map of shuffled children ids
@@ -1196,7 +1204,7 @@ public:
         
 	for (int m=0; m<n_migrants; m++) 
 	  {
-	    if (c>=find(i)->second.N) { cerr << "ERROR (evolve subpopulation): too many migrants in subpopulation "<< i << endl; exit(1); } 
+	    if (c >= find(i)->second.N) { cerr << "ERROR (evolve subpopulation): too many migrants in subpopulation "<< i << endl; exit(1); }
 
 	    g1 = 2*child_map[c];   // child genome 1
 	    g2 = 2*child_map[c]+1; // child genome 2
@@ -3072,8 +3080,8 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& FI, mu
 
   // initialize rng
 
-  rng=gsl_rng_alloc(gsl_rng_taus2);
-  gsl_rng_set(rng,(long)seed); 
+  rng = gsl_rng_alloc(gsl_rng_taus2);
+  gsl_rng_set(rng, (long)seed);
 
   parameters.push_back("#SEED");
   stringstream ss; ss << seed;
