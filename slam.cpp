@@ -106,7 +106,7 @@ public:
     // assignments can change over time. Change s to be an array of length equal to the number of
     // environment types.
 
-  // basic constructor
+  // default constructor
   mutation(void) { ; }
 
   // alternative constructor
@@ -223,6 +223,7 @@ public:
   } // end of draw_s()
 }; // end of class mutation_type
 
+
 class environment
 {
   // an environment reassigns a dominance coefficient and modifies the (mean) selection coefficient
@@ -237,7 +238,10 @@ public:
     // type that is affected in this environment relative to the reference environment; the key is
     // the mutation-type identifier
 
-  // constructor
+  // default constructor
+  environment(void) { ; }
+
+  // extended constructor
   environment(map< int,vector<double> >& H, map< int,vector<double> >& SMODIF)
   {
 
@@ -250,6 +254,7 @@ public:
   } // end of constructor
 
 }; // end of class environment
+
 
 class genomic_element
 {
@@ -661,7 +666,7 @@ public:
     double A[N];
     for (int i = 0; i < N; i++)
       { A[i] = 1.0; }
-    LT = gsl_ran_discrete_preproc(N, A); // to draw individuals at random, which uniform weights
+    LT = gsl_ran_discrete_preproc(N, A); // to draw individuals at random, with uniform weights
 
     // TODO: Assign the reference environment.
 
@@ -674,25 +679,28 @@ public:
   }
 
 
-  void update_fitness(chromosome& chr)
+  void update_fitness(chromosome& chr, char& fi)
   {
+    // updating fitness given mutations on chromosome chr and fitness interaction of type fi
+
     // calculate fitnesses in parent population and create new lookup table
     
     gsl_ran_discrete_free(LT);
     double A[(int)(G_parent.size()/2)]; // individuals are diploid
     for (int i = 0; i < (int)(G_parent.size()/2); i++)
       {
-        A[i] = W(2*i, 2*i+1, chr);
+        A[i] = W(2*i, 2*i+1, chr, fi);
       }
     LT = gsl_ran_discrete_preproc((int)(G_parent.size()/2), A); // assigning weights to individuals
       // that correspond to their (abolute) fitness
   } // end of method update_fitness()
 
 
-  double W(int i, int j, chromosome& chr)
+  double W(int i, int j, chromosome& chr, char fi)
   {
     // calculate the fitness of the individual constituted by genomes i and j in the parent
-      // population, where i and j are indices to the vector population
+      // population, where i and j are indices to the vector population. Consider mutations
+      // on chromosome chr and assume fitness interaction type fi
     
     double w = 1.0;
 
@@ -820,9 +828,8 @@ public:
   map<int,subpopulation>::iterator it;
 
   vector<string> parameters;
-  // TODO: GO ON HERE. Change to include fitness interaction as argument. Change class
-    // subpopulation accordingly.
-  void add_subpopulation(int i, unsigned int N) 
+
+  void add_subpopulation(int i, unsigned int N)
   {
     // add new empty subpopulation i of size N (i is the key of the subpopulation)
 
@@ -1108,7 +1115,7 @@ public:
 	      }
 	  }
 
-	// out put the frequencies of these mutations in each subpopulation
+	// output the frequencies of these mutations in each subpopulation
 
 	for (P_it = P.begin(); P_it != P.end(); P_it++) 
 	  { 
@@ -1335,20 +1342,24 @@ public:
   }
 
 
-  void swap_generations(int g, chromosome& chr)
+  void swap_generations(int g, chromosome& chr, char& fi)
   {
+
+    // perform change of generation at time g and update fitnesses given mutations on chromosome
+      // chr assuming fitness interaction fi (additive or multiplicative)
+
     // find and remove fixed mutations from the children in all subpopulations
     
     remove_fixed(g);
 
     // make children the new parents and update fitnesses
 
-    for (it = begin(); it != end(); it++) 
+    for (it = begin(); it != end(); it++) // iterating over subpopulations
       { 
-	it->second.swap();
-	it->second.update_fitness(chr); 
-      }
-  }
+        it->second.swap();
+        it->second.update_fitness(chr, fi);
+      } // end of iterating over subpopulations
+  } // end of method swap_generations()
 
 
   void remove_fixed(int g)
@@ -2555,7 +2566,7 @@ void check_input_file(char* file)
 } // end of method check_input_file()
 
 
-void initialize_from_file(population& P, const char* file, chromosome& chr)
+void initialize_from_file(population& P, const char* file, chromosome& chr, char& fi)
 {
   // initialize population from file
 
@@ -2570,41 +2581,59 @@ void initialize_from_file(population& P, const char* file, chromosome& chr)
 
   get_line(infile, line);
 
-  while (line.find("Populations") == string::npos && !infile.eof()) { get_line(infile, line); } 
+  // advancing to populations section
+  while (line.find("Populations") == string::npos && !infile.eof())
+    {
+      get_line(infile, line);
+    } // populations section reached
 
   get_line(infile, line);
 
+  // advancing to mutations, reading subpopulations
   while (line.find("Mutations") == string::npos && !infile.eof())
     { 
-      istringstream iss(line); iss >> sub; sub.erase(0, 1);  
-      int i = atoi(sub.c_str()); iss >> sub;  
-      int n = atoi(sub.c_str());
-      P.add_subpopulation(i,n);
+      istringstream iss(line);
+      iss >> sub;
+      sub.erase(0, 1); // erasing leading "p"
+      int i = atoi(sub.c_str()); // subpopulation identifier
+      iss >> sub;
+      int n = atoi(sub.c_str()); // subpopulation size
+      P.add_subpopulation(i, n);
       get_line(infile, line);      
-    }
+    } // subpopulations read, mutations section reached
 
   get_line(infile, line);
 
+  // advancing to genomes, reading mutations
   while (line.find("Genomes") == string::npos && !infile.eof()) 
     {     
-      istringstream iss(line); iss >> sub; 
-      int   i = atoi(sub.c_str()); iss >> sub; sub.erase(0, 1); 
-      int   t = atoi(sub.c_str()); iss >> sub; 
-      int   x = atoi(sub.c_str())-1; iss >> sub; 
-      float s = atof(sub.c_str());
+      istringstream iss(line);
+      iss >> sub;
+      int   i = atoi(sub.c_str()); // id
+      iss >> sub;
+      sub.erase(0, 1); // erasing leading "m"
+      int   t = atoi(sub.c_str()); // mutation type
+      iss >> sub;
+      int   x = atoi(sub.c_str()) - 1; // physical position (internally starting at 0)
+      iss >> sub;
+      float s = atof(sub.c_str()); // selection coefficient
 
-      M.insert(pair<int,mutation>(i,mutation(t,x,s)));
+      M.insert(pair<int,mutation>(i,mutation(t, x, s)));
       get_line(infile, line); 
-    }
+    } // mutations read, genomes section reached
 
   get_line(infile, line);
 
+  // advancing to end of file, reading genomes
   while (!infile.eof()) // while end of file not reached
     {
-      istringstream iss(line); iss >> sub; sub.erase(0, 1);
-      int pos = sub.find_first_of(":"); 
-      int p = atoi(sub.substr(0,pos+1).c_str()); sub.erase(0,pos+1);  
-      int i = atoi(sub.c_str());
+      istringstream iss(line);
+      iss >> sub;
+      sub.erase(0, 1); // erasing leading "p"
+      int pos = sub.find_first_of(":"); // helper giving position of ":"
+      int p = atoi(sub.substr(0, pos).c_str()); // numeric subpopulation identifier
+      sub.erase(0, pos+1);
+      int i = atoi(sub.c_str()); //
 
       while (iss >> sub) 
         {
@@ -2616,7 +2645,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr)
 
   for (P.it = P.begin(); P.it != P.end(); P.it++)
     {
-      P.it->second.update_fitness(chr);
+      P.it->second.update_fitness(chr, fi);
     }
 } // end of initialize_from_file()
 
@@ -2725,7 +2754,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& FI, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub; // 'a' for additive; 'm' for multiplicative
-                      FI = sub.at(0);
+                      FI = sub.at(0); // assign fitness interaction
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
@@ -3055,7 +3084,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& FI, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub;
-                      initialize_from_file(P, sub.c_str(), chr);
+                      initialize_from_file(P, sub.c_str(), chr, FI);
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next section or end of file
@@ -3111,7 +3140,8 @@ int main(int argc,char *argv[])
 
   int T; // maximum number of generations
   chromosome chr; // chromosome
-  char FI; // type of fitness interaction ('a' for additive; 'm' for multiplicative)
+
+  char FI; // fitness interaction ('a' for additive; 'm' for multiplicative)
 
   population P;
   map<int, subpopulation>::iterator itP;
@@ -3195,6 +3225,6 @@ int main(int argc,char *argv[])
 
       // swap generations
 
-      P.swap_generations(g,chr);   
+      P.swap_generations(g, chr, FI);
     }
-}
+} // end of method main()
