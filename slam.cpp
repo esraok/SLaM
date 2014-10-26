@@ -696,7 +696,7 @@ public:
   } // end of method update_fitness()
 
 
-  double W(int i, int j, chromosome& chr, char fi)
+  double W(int i, int j, chromosome& chr, char& fi)
   {
     // calculate the fitness of the individual constituted by genomes i and j in the parent
       // population, where i and j are indices to the vector population. Consider mutations
@@ -706,40 +706,57 @@ public:
 
     // a genome is a vector of mutations
     vector<mutation>::iterator pi = G_parent[i].begin(); // iterator pointing to the first mutation
-      // in parent i (i.e. genome i of the parental population)
+      // in parent i (i.e. genome i) of the parental population
     vector<mutation>::iterator pj = G_parent[j].begin();
 
     vector<mutation>::iterator pi_max = G_parent[i].end(); // iterator pointing to the last
-      // mutation in parent i (i.e. genome i of the parental population)
+      // mutation in parent i (i.e. genome i) of the parental population
     vector<mutation>::iterator pj_max = G_parent[j].end();
 
     while (w > 0 && (pi != pi_max || pj != pj_max)) // while fitness is strictly positive, and
-      // at least one parent has mutations not jet visited
+      // at least one parental genome has mutations not jet visited
       {
+
+        // deal with all mutation except those residing at the same position x in the two parental
+          // genomes
 
         // advance i while pi.x < pj.x (x is the physical position)
         while (pi != pi_max && (pj == pj_max || (*pi).x < (*pj).x)) // while there are unvisited
           // mutations left in genome i and (there are no unvisited mutations left in genome j or
-          // the position of the current mutation in genome i is smaller than the current mutation
-          // in genome j)
-          // TODO: GO ON HERE. Differentiate between 'a'(dditive) and 'm'(multiplicative) fitness
-            // interaction scheme. Introduce environment specific fitnesses.
+          // the position of the current mutation in genome i is smaller than that of the current
+          //  mutation in genome j)
           {
-            // changed by SA: additive instead of mulitplicative fitness interaction
-            // if ((*pi).s != 0) // if this mutation in genome i is not neutral
-            //  {
-            //    w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s);
-            //  } // end of if this mutation in i is not neutral
-            if ((*pi).s != 0) // if this mutation in individual i is not neutral
-              {
-                w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s;
-              }
-          pi++;
-	  }
-	   
-	// advance j while pj.x < pi.x
 
-	while (pj != pj_max && (pi == pi_max || (*pj).x < (*pi).x))
+            if ((*pi).s != 0) // if this mutation in genome i is not neutral
+              {
+                // distinguish between two fitness regeimes (additive vs. multiplicative)
+                if (fi == 'a') // if fitness interaction is additive
+                  {
+                    // TODO: Change to environment-specific fitnesses
+                    w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s; // the dominance
+                      // coefficient is a public variable of the class mutation type; the selection
+                      // coefficient is a public variable of the class mutation
+                  } // fitness interaction is not additive
+                else if (fi == 'm') // ie fitness interaction is multiplicative
+                  {
+                    // TODO: Change to environment-specific fitnesses
+                    w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
+                  } // fitness interaction is neither additive nor multiplicative
+                else
+                  { exit(1); }
+                    w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
+              } // end of if this mutation in i is not neutral
+            pi++;
+          } // end of advancing i while pi.x < pj.x
+	   
+        // advance j while pj.x < pi.x (x is the physical position)
+        while (pj != pj_max && (pi == pi_max || (*pj).x < (*pi).x)) // while there are unvisited
+          // mutations left in genome j and (there are no unvisited mutations left in genome i or
+          // the position of the current mutation in genome j is smaller than that of the current
+          //  mutation in genome i)
+          // TODO: GO ON HERE. Differentiate between 'a'(dditive) and 'm'(multiplicative) fitness
+          // interaction scheme. Introduce environment specific fitnesses.
+
 	  {
           // changed by SA: additive instead of mulitplicative fitness interaction
           // if ((*pj).s != 0) { w = w*(1.0+chr.mutation_types.find((*pj).t)->second.h*(*pj).s); }
@@ -747,7 +764,7 @@ public:
           pj++;
 	  }
 	
-	// check for homozygotes and heterozygotes at x
+	// check for homozygotes and heterozygotes at position x
 
 	if (pi != pi_max && pj != pj_max && (*pj).x == (*pi).x)
 	  {
