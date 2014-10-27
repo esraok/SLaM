@@ -234,7 +234,7 @@ public:
   map< int,vector<double> > h; // dominance coefficients for each mutation-type that is affected in
     // this environment relative to the reference environment; the key is the mutation-type
     // identifier
-  map< int,vector<double> > smodif; // modifier of (mean) selection coefficient for each mutation-
+  map< int,vector<double> > smodif; // modifier of selection coefficient for each mutation-
     // type that is affected in this environment relative to the reference environment; the key is
     // the mutation-type identifier
 
@@ -679,7 +679,7 @@ public:
   }
 
 
-  void update_fitness(chromosome& chr, char& fi)
+  void update_fitness(chromosome& chr, char* fi)
   {
     // updating fitness given mutations on chromosome chr and fitness interaction of type fi
 
@@ -689,14 +689,15 @@ public:
     double A[(int)(G_parent.size()/2)]; // individuals are diploid
     for (int i = 0; i < (int)(G_parent.size()/2); i++)
       {
-        A[i] = W(2*i, 2*i+1, chr, fi);
+        A[i] = W(2*i, 2*i+1, chr, fi); // recall that genomes are stored such that individual
+          // i is made up of haploid genomes 2*i and and 2*i + 1
       }
     LT = gsl_ran_discrete_preproc((int)(G_parent.size()/2), A); // assigning weights to individuals
       // that correspond to their (abolute) fitness
   } // end of method update_fitness()
 
 
-  double W(int i, int j, chromosome& chr, char& fi)
+  double W(int i, int j, chromosome& chr, char* fi)
   {
     // calculate the fitness of the individual constituted by genomes i and j in the parent
       // population, where i and j are indices to the vector population. Consider mutations
@@ -706,11 +707,12 @@ public:
 
     // a genome is a vector of mutations
     vector<mutation>::iterator pi = G_parent[i].begin(); // iterator pointing to the first mutation
-      // in parent i (i.e. genome i) of the parental population
+      // in the haploid genome i of the parental population
     vector<mutation>::iterator pj = G_parent[j].begin();
 
-    vector<mutation>::iterator pi_max = G_parent[i].end(); // iterator pointing to the last
-      // mutation in parent i (i.e. genome i) of the parental population
+    vector<mutation>::iterator pi_max = G_parent[i].end(); // iterator pointing to the end of the
+      // vector with mutations in the haploid genome i of the parental population; does not point
+      // to an actual element, but to the virtual past-the-end element
     vector<mutation>::iterator pj_max = G_parent[j].end();
 
     while (w > 0 && (pi != pi_max || pj != pj_max)) // while fitness is strictly positive, and
@@ -718,7 +720,8 @@ public:
       {
 
         // deal with all mutation except those residing at the same position x in the two parental
-          // genomes
+          // genomes (i.e., exclude cases where distinction must be made between homo- and hetero
+          // zygotes)
 
         // advance i while pi.x < pj.x (x is the physical position)
         while (pi != pi_max && (pj == pj_max || (*pi).x < (*pj).x)) // while there are unvisited
@@ -726,102 +729,218 @@ public:
           // the position of the current mutation in genome i is smaller than that of the current
           //  mutation in genome j)
           {
-
             if ((*pi).s != 0) // if this mutation in genome i is not neutral
               {
                 // distinguish between two fitness regeimes (additive vs. multiplicative)
-                if (fi == 'a') // if fitness interaction is additive
+                if (*fi == 'a') // if fitness interaction is additive
                   {
                     // TODO: Change to environment-specific fitnesses
                     w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s; // the dominance
                       // coefficient is a public variable of the class mutation type; the selection
                       // coefficient is a public variable of the class mutation
                   } // fitness interaction is not additive
-                else if (fi == 'm') // ie fitness interaction is multiplicative
+                else if (*fi == 'm') // ie fitness interaction is multiplicative
                   {
                     // TODO: Change to environment-specific fitnesses
                     w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
                   } // fitness interaction is neither additive nor multiplicative
                 else
                   { exit(1); }
-                    w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
               } // end of if this mutation in i is not neutral
             pi++;
-          } // end of advancing i while pi.x < pj.x
+          } // end of advancing i while pi.x < pj.x; pi == pi_max || (*pi).x >= (*pj).x
 	   
         // advance j while pj.x < pi.x (x is the physical position)
         while (pj != pj_max && (pi == pi_max || (*pj).x < (*pi).x)) // while there are unvisited
           // mutations left in genome j and (there are no unvisited mutations left in genome i or
           // the position of the current mutation in genome j is smaller than that of the current
           //  mutation in genome i)
-          // TODO: GO ON HERE. Differentiate between 'a'(dditive) and 'm'(multiplicative) fitness
-          // interaction scheme. Introduce environment specific fitnesses.
-
-	  {
-          // changed by SA: additive instead of mulitplicative fitness interaction
-          // if ((*pj).s != 0) { w = w*(1.0+chr.mutation_types.find((*pj).t)->second.h*(*pj).s); }
-          if ((*pj).s != 0) { w = w+chr.mutation_types.find((*pj).t)->second.h*(*pj).s; }
-          pj++;
-	  }
+          {
+            if ((*pj).s != 0) // if this mutation in genome j is not neutral
+              {
+                // distinguish between two fitness regimes (additive vs. multiplicative)
+                if (*fi == 'a') // if fitness interaction is additive
+                  {
+                    // TODO: Change to environment-specific fitnesses
+                    w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s; // see above for
+                      // details
+                  } // fitness interaction is not additive
+                else if (*fi == 'm')
+                  {
+                    // TODO: Change to environment-specific fitnesses
+                    w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
+                  } // fitness interaction is neither additive nor multiplicative
+                else
+                  { exit(1); }
+              } // end of if this mutation in j is not neutral
+            pj++;
+          } // end of advancing j while pj.x < pi.x; pj == pj_max || (*pj).x >= (*pi).x
 	
-	// check for homozygotes and heterozygotes at position x
+        // check for homozygotes and heterozygotes at position x, if there are any left in both
+          // parental genomes
 
-	if (pi != pi_max && pj != pj_max && (*pj).x == (*pi).x)
-	  {
-	    int x = (*pi).x; 
+        if (pi != pi_max && pj != pj_max && (*pj).x == (*pi).x) // if there are unvisited mutations
+          // left in both genomes i and j, and if the currently visited mutations are at the same
+            // physical position x
+          {
+            int x = (*pi).x;
 	   
-	    vector<mutation>::iterator pi_start = pi;
+            vector<mutation>::iterator pi_start = pi;
 
-	    // advance through pi
+            // advance through pi, i.e. through mutations in genome i that reside at the same
+              // position; recall that one (haploid!) 'genome' can harbour more than one mutation
+              // at the same position, as long as the mutations do not have the same type AND
+              // selection coefficient.
+            // TODO: Change this. Allow for only two segregating mutations of a non-neutral type at
+              // a given physical position in the whole population. Probably best to handle this
+              // case when mutations are created, but then do a check here, and exit if the rule is
+              // broken.
 
-	    while (pi != pi_max && (*pi).x == x)
-	      {
-		if ((*pi).s != 0.0)
-		  {
-		    vector<mutation>::iterator temp_j = pj; 
-		    bool homo = 0;
+            while (pi != pi_max && (*pi).x == x) // visiting all mutations in genome i that reside
+              // at a given physical position x
+              {
+                if ((*pi).s != 0.0) // if this mutation in genome i is not neutral
+                  {
+                    vector<mutation>::iterator temp_j = pj;
+                    bool homo = 0;
 
-		    while (homo == 0 && temp_j != pj_max && (*temp_j).x == x)
-		      {
-			if ((*pi).t == (*temp_j).t && (*pi).s == (*temp_j).s) 
-			  { 
-                  // changed by SA: additive instead of mulitplicative fitness interaction
-                  // w = w*(1.0+(*pi).s); homo = 1;
-                  w = w+(*pi).s; homo = 1;
-			  }
-			temp_j++;
-		      }
-              // changed by SA: additive instead of mulitplicative fitness interaction
-              // if (homo == 0) { w = w*(1.0+chr.mutation_types.find((*pi).t)->second.h*(*pi).s); }
-              if (homo == 0) { w = w+chr.mutation_types.find((*pi).t)->second.h*(*pi).s; }
-		  }
-		pi++;
-	      }
+                    while (homo == 0 && temp_j != pj_max && (*temp_j).x == x) // advance through
+                      // mutations in genome j at position x, as long as no homozygote is found
+                      {
+                        // Note that no permanent mutation identifiers are stored for reasons of
+                          // computational efficiency (memory). hence identity is assessed based on
+                          // mutation type and selection coefficient
+                        // TODO: Stick to the practice of not storing mutation identifiers, but
+                          // then identity must be defined based on properties (mutation type and
+                          // selection coefficient) in the reference environment.
+                        if ((*pi).t == (*temp_j).t && (*pi).s == (*temp_j).s) // if currently
+                          // visited mutations in genomes i and j are biologically the same
+                            // (identical by state)
+                          {
+                            // distinguish between two fitness regimes (additive vs.
+                              // multiplicative)
+                            if (*fi == 'a')
+                              {
+                                // TODO: Change to environment-specific fitnesses
+                                w = w + (*pi).s;
+                                homo = 1;
+                              } // fitness interaction is not additive
+                            else if (*fi == 'm')
+                              {
+                                w = w * (1.0 + (*pi).s);
+                                homo = 1;
+                              } // fitness interaction is neither additive nor multiplicative
+                            else
+                              { exit(1); }
+                          } // currently visited mutations are not the same; the parent is not
+                              // homozygous
+                        temp_j++;
+                      } // end of advance through mutations in genome j at position x, as long as
+                          // no homozygote is found
+                    if (homo == 0) // if the parent is not homozygous at position x
+                      // Note that this implementation (the original one in SLiM) is conceptually
+                        // flawed. Dominance is applied here only from the perspective of a focal
+                        // mutation (*pi), irrespective of the other mutation present. However,
+                        // dominance is a feature of the genotype.
+                      // TODO: Fix this by allowing only one mutation of a non-neutral type at any
+                        // physical position (neutrality being defined w.r.t. the reference
+                        // environment)
+                      {
+                        // distinguish between two fitness regimes (additive vs. multiplicative)
+                        if (*fi == 'a')
+                          {
+                            // TODO: Change to environment-specific fitnesses
+                            w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s;
+                          }
+                        else if (*fi == 'm')
+                          {
+                            // TODO: Change to environment-specific fitnesses
+                            w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
+                          }
+                        else
+                          { exit(1); }
+                      } // enf of if parent is not homozygous
+                  } // end of if this mutation in genome i is not neutral; hence, it is neutral
+                pi++;
+              } // end of visiting mutations in genome i that reside at the same physical pos. x
 
-	    // advance through pj
+            // advance through pj, i.e. through mutations in genome j that reside at the same
+              // position; recall that one (haploid!) 'genome' can harbour more than one mutation
+              // at the same position, as long as the mutations do not have the same type AND
+              // selection coefficient.
+            // TODO: Change this. Allow for only two segregating mutations of a non-neutral type at
+              // a given physical position in the whole population. Probably best to handle this
+              // case when mutations are created, but then do a check here, and exit if the rule is
+              // broken.
 
-	    while (pj != pj_max && (*pj).x == x)
-	      {
-		if ((*pj).s != 0.0)
-		  {
-		    vector<mutation>::iterator temp_i = pi_start; 
-		    bool homo = 0;
+            while (pj != pj_max && (*pj).x == x) // visiting all mutations in genome j that reside
+              // at a given physical position x; note that x is the position of the focal mutation
+                // currently visited in the outer loop in genome i, but we are here in the
+                // situation where (*pj).x == (*pi).x holds.
+              {
+                if ((*pj).s != 0.0) // if this mutation in genome j is not neutral
+                  {
+                    vector<mutation>::iterator temp_i = pi_start; // recall that pi_start was
+                      // assigned pi above, i.e. pi_start = pi, but in the meantime, pi has been
+                      // increased
+                    bool homo = 0;
 
-		    while (homo == 0 && temp_i != pi_max && (*temp_i).x == x)
-		      {
-			if ((*pj).t == (*temp_i).t && (*pj).s == (*temp_i).s) { homo = 1; }
-			temp_i++;
-		      }
-              // changed by SA: additive instead of mulitplicative fitness interaction
-              // if (homo == 0) { w = w*(1.0+chr.mutation_types.find((*pj).t)->second.h*(*pj).s); }
-              if (homo == 0) { w = w+chr.mutation_types.find((*pj).t)->second.h*(*pj).s; }
-		  }
-		pj++;
-	      }
-	  }
-      }
-
-    if (w<0) { w = 0.0; }
+                    while (homo == 0 && temp_i != pi_max && (*temp_i).x == x) // advance through
+                      // mutations in genome i at position x, as long as no homozygote is found
+                      {
+                        // homozygosity is defined as identity by state here
+                        // TODO: Stick to the practice of not storing mutation identifiers, but
+                        // then identity must be defined based on properties (mutation type and
+                        // selection coefficient) in the reference environment.
+                        if ((*pj).t == (*temp_i).t && (*pj).s == (*temp_i).s) // if currently
+                          // visited mutations in genomes i and j are biologically the same
+                            // (identical by state)
+                          {
+                            // we encountered this genotype before and have incorporated its
+                              // contribution to fitness
+                            homo = 1;
+                          }
+                        temp_i++;
+                      } // end of advance through mutations in genome i at position x, as long as
+                          // no homozygote is found
+                    if (homo == 0) // if the parent is not homozygous at position x
+                      // Note that this implementation (the original one in SLiM) is conceptually
+                        // flawed. Dominance is applied only from the perspective of a focal
+                        // mutation (*pj), irrespective of the other mutation present. However,
+                        // dominance is a feature of the genotype.
+                      // TODO: Fix this by allowing only one mutation of a non-neutral type at any
+                        // physical position (neutrality being defined w.r.t. the reference
+                        // environment)
+                      {
+                        // distinguish between two fitness regimes (additive vs. multiplicative)
+                        if (*fi == 'a')
+                          {
+                            w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s;
+                          }
+                        else if (*fi == 'm')
+                          {
+                            w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
+                          }
+                        else
+                          { exit(1); }
+                      } // end of if parent is not homozygous
+                  } // end of if this mutation in genome j is not neutral; hence, it is neutral
+                pj++;
+              } // end of visiting mutations in genome j that reside at the same physical pos. x
+          } // end of if there are unvisited mutations left in both genomes i and j, and if the
+              // currently visited mutations are at the same physical position x; there are either
+              // no unvisited mutations left in at least one genome, or physical positions are not
+              // the same
+      } // end of while fitness is strictly positive and at least one parental genome has mutations
+          // not yet visited; hence, fitness is either not strictly positive or at least one of the
+          // parental genomes has no more mutations left to be visited.
+        // TODO: GO ON HERE NOW.
+        // TODO: I am worried that in a case where w is not strictly positive at a given stage of
+          // the algorithm, it may become positive later, due to the contribution of beneficial
+          // mutations not yet visited. Check if this worry is justified and if the implementation
+          // is correct.
+    if (w < 0)
+      { w = 0.0; }
 
     return w;
   } // end of method W()
@@ -1079,8 +1198,8 @@ public:
       {
     // recall: a genonme is a vector of mutations
     // find subpopulation, then return two of its children
-	genome *g1 = &find(M.i)->second.G_child[2*j];
-	genome *g2 = &find(M.i)->second.G_child[2*j+1];
+	genome* g1 = &find(M.i)->second.G_child[2*j];
+	genome* g2 = &find(M.i)->second.G_child[2*j+1];
     // append the new mutation to the end of the genotypes.
 	(*g1).push_back(m);
 	(*g2).push_back(m);
@@ -1359,7 +1478,7 @@ public:
   }
 
 
-  void swap_generations(int g, chromosome& chr, char& fi)
+  void swap_generations(int g, chromosome& chr, char* fi)
   {
 
     // perform change of generation at time g and update fitnesses given mutations on chromosome
@@ -2045,7 +2164,7 @@ void check_input_file(char* file)
                             { good = 0; }
                           if(iss.eof())
                             { good = 0; }
-                          iss >> sub; // s-modif (modifier of [mean] selection coefficient)
+                          iss >> sub; // s-modif (modifier of selection coefficient)
                           if(sub.find_first_not_of("1234567890.e-") != string::npos)
                             { good = 0; }
                         } // end of while end of file (line) not reached
@@ -2583,7 +2702,7 @@ void check_input_file(char* file)
 } // end of method check_input_file()
 
 
-void initialize_from_file(population& P, const char* file, chromosome& chr, char& fi)
+void initialize_from_file(population& P, const char* file, chromosome& chr, char* fi)
 {
   // initialize population from file
 
@@ -2672,7 +2791,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
   that will be introduced, and mutations PS undergoing partial sweeps. FI denotes the fitness
   interaction
 */
-void initialize(population& P, char* file, chromosome& chr, int& T, char& FI, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
+void initialize(population& P, char* file, chromosome& chr, int& T, char* fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
 {
   string line; 
   string sub; 
@@ -2771,7 +2890,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& FI, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub; // 'a' for additive; 'm' for multiplicative
-                      FI = sub.at(0); // assign fitness interaction
+                      *fi = sub.at(0); // assign fitness interaction
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
@@ -2958,8 +3077,8 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& FI, mu
                     {
                       parameters.push_back(line);
                       // FORMAT: i m1 h1 s-modif1 [m2 h2 s-modif2 ...]
-                        // (identifier, mut type, dominance coeff., modifier of (mean) sel. coeff
-                        // , [mut type, dominance coeff., modifier of (mean) sel. coeff, ...])
+                        // (identifier, mut type, dominance coeff., modifier of selection coeff.
+                        // , [mut type, dominance coeff., modifier of selection coeff., ...])
                       int i; vector<int> m; vector<double> h; vector<double> smodif;
                       istringstream iss(line);
 
