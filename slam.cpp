@@ -120,6 +120,7 @@ public:
 
 
 bool operator< (const mutation &M1, const mutation &M2)
+// mutations are compared based on their physical position
 {
   return M1.x < M2.x;
 };
@@ -338,9 +339,11 @@ public:
 
     L = 0;
 
-    for (int i=0; i<size(); i++)
+    for (int i=0; i<size(); i++) // size(): the number of genomic elements that make up this
+      // chromosome
       {
-	if (genomic_element_types.count(operator[](i).i)==0)
+	if (genomic_element_types.count(operator[](i).i)==0) // the first 'i' is the iterator, the second
+    // 'i' is the identifier of the genomic element
 	  { 
 	    cerr << "ERROR (initialize): genomic element type " << operator[](i).i << " not defined" << endl; exit(1); 
 	  }
@@ -679,7 +682,7 @@ public:
   }
 
 
-  void update_fitness(chromosome& chr, char* fi)
+  void update_fitness(chromosome& chr, char& fi)
   {
     // updating fitness given mutations on chromosome chr and fitness interaction of type fi
 
@@ -697,7 +700,7 @@ public:
   } // end of method update_fitness()
 
 
-  double W(int i, int j, chromosome& chr, char* fi)
+  double W(int i, int j, chromosome& chr, char& fi)
   {
     // calculate the fitness of the individual constituted by genomes i and j in the parent
       // population, where i and j are indices to the vector population. Consider mutations
@@ -732,14 +735,14 @@ public:
             if ((*pi).s != 0) // if this mutation in genome i is not neutral
               {
                 // distinguish between two fitness regeimes (additive vs. multiplicative)
-                if (*fi == 'a') // if fitness interaction is additive
+                if (fi == 'a') // if fitness interaction is additive
                   {
                     // TODO: Change to environment-specific fitnesses
                     w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s; // the dominance
                       // coefficient is a public variable of the class mutation type; the selection
                       // coefficient is a public variable of the class mutation
                   } // fitness interaction is not additive
-                else if (*fi == 'm') // ie fitness interaction is multiplicative
+                else if (fi == 'm') // ie fitness interaction is multiplicative
                   {
                     // TODO: Change to environment-specific fitnesses
                     w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
@@ -759,13 +762,13 @@ public:
             if ((*pj).s != 0) // if this mutation in genome j is not neutral
               {
                 // distinguish between two fitness regimes (additive vs. multiplicative)
-                if (*fi == 'a') // if fitness interaction is additive
+                if (fi == 'a') // if fitness interaction is additive
                   {
                     // TODO: Change to environment-specific fitnesses
                     w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s; // see above for
                       // details
                   } // fitness interaction is not additive
-                else if (*fi == 'm')
+                else if (fi == 'm')
                   {
                     // TODO: Change to environment-specific fitnesses
                     w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
@@ -819,13 +822,13 @@ public:
                           {
                             // distinguish between two fitness regimes (additive vs.
                               // multiplicative)
-                            if (*fi == 'a')
+                            if (fi == 'a')
                               {
                                 // TODO: Change to environment-specific fitnesses
                                 w = w + (*pi).s;
                                 homo = 1;
                               } // fitness interaction is not additive
-                            else if (*fi == 'm')
+                            else if (fi == 'm')
                               {
                                 w = w * (1.0 + (*pi).s);
                                 homo = 1;
@@ -847,12 +850,12 @@ public:
                         // environment)
                       {
                         // distinguish between two fitness regimes (additive vs. multiplicative)
-                        if (*fi == 'a')
+                        if (fi == 'a')
                           {
                             // TODO: Change to environment-specific fitnesses
                             w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s;
                           }
-                        else if (*fi == 'm')
+                        else if (fi == 'm')
                           {
                             // TODO: Change to environment-specific fitnesses
                             w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
@@ -913,11 +916,11 @@ public:
                         // environment)
                       {
                         // distinguish between two fitness regimes (additive vs. multiplicative)
-                        if (*fi == 'a')
+                        if (fi == 'a')
                           {
                             w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s;
                           }
-                        else if (*fi == 'm')
+                        else if (fi == 'm')
                           {
                             w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
                           }
@@ -1194,17 +1197,18 @@ public:
     
     // introduce homozygotes
 
-    for (int j=0; j<M.nAA; j++)
+    for (int j = 0; j < M.nAA; j++)
       {
     // recall: a genonme is a vector of mutations
     // find subpopulation, then return two of its children
-	genome* g1 = &find(M.i)->second.G_child[2*j];
+	genome* g1 = &find(M.i)->second.G_child[2*j]; // recall: a diploid individual j is made up of
+      // haploid genomes 2*j and 2*j + 1
 	genome* g2 = &find(M.i)->second.G_child[2*j+1];
     // append the new mutation to the end of the genotypes.
 	(*g1).push_back(m);
 	(*g2).push_back(m);
     // sort the genomes
-	sort((*g1).begin(),(*g1).end());
+	sort((*g1).begin(),(*g1).end()); // sorting according to physical position
 	sort((*g2).begin(),(*g2).end());
     // unique(ForwardIterator first, ForwardIterator last): removes al but
           // the first element from every consecutive group of equivalent
@@ -1212,7 +1216,9 @@ public:
     // erase(iterator first, iterator last): removes the range
           // [first, last) of elements
     // remove *consecutive* duplicate mutations
-	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end());
+    // TODO: GO ON HERE, understanding what is done.
+	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end()); // operator ==: same position, same
+      // same mutation type, and same selection coefficient
 	(*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
       }
 
@@ -1478,7 +1484,7 @@ public:
   }
 
 
-  void swap_generations(int g, chromosome& chr, char* fi)
+  void swap_generations(int g, chromosome& chr, char& fi)
   {
 
     // perform change of generation at time g and update fitnesses given mutations on chromosome
@@ -2702,7 +2708,7 @@ void check_input_file(char* file)
 } // end of method check_input_file()
 
 
-void initialize_from_file(population& P, const char* file, chromosome& chr, char* fi)
+void initialize_from_file(population& P, const char* file, chromosome& chr, char& fi)
 {
   // initialize population from file
 
@@ -2791,7 +2797,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
   that will be introduced, and mutations PS undergoing partial sweeps. FI denotes the fitness
   interaction
 */
-void initialize(population& P, char* file, chromosome& chr, int& T, char* fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
+void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
 {
   string line; 
   string sub; 
@@ -2890,7 +2896,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char* fi, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub; // 'a' for additive; 'm' for multiplicative
-                      *fi = sub.at(0); // assign fitness interaction
+                      fi = sub.at(0); // assign fitness interaction
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
@@ -3220,7 +3226,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char* fi, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub;
-                      initialize_from_file(P, sub.c_str(), chr, FI);
+                      initialize_from_file(P, sub.c_str(), chr, fi);
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next section or end of file
