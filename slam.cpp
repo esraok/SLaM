@@ -103,8 +103,7 @@ public:
   float s; // selection coefficient
     // TODO: selection coefficients (and dominance coefficients) must become environment-specific.
     // Introduce class 'environment', and then assign a environment to each deme. environment
-    // assignments can change over time. Change s to be an array of length equal to the number of
-    // environment types.
+    // assignments can change over time.
 
   // default constructor
   mutation(void) { ; }
@@ -114,7 +113,7 @@ public:
   { 
     t = T;
     x = X;
-    s = S; // TODO: Will become an array of floats
+    s = S;
   }
 }; // end of class mutation
 
@@ -126,7 +125,8 @@ bool operator< (const mutation &M1, const mutation &M2)
 };
 
 
-bool operator== (const mutation &M1, const mutation &M2) //
+bool operator== (const mutation &M1, const mutation &M2)
+// mutations are equal if their position, type and selection coefficient are identical
 {
   return (M1.x == M2.x && M1.t == M2.t && M1.s == M2.s);
 };
@@ -194,9 +194,10 @@ public:
 
   mutation_type(float H, char D, vector<double> P)
   {
-    h = H;
-    d = D;
-    p = P;
+    h = H; // dominance coefficient; valid in the reference environment, subject to overriding in
+      // user-defined environments
+    d = D; // distribution of fitness effects (DFE); valid independently of environment
+    p = P; // vector of parameters specifying the DFE; valid independently of environment
 
     string s = "fge";
 
@@ -210,18 +211,23 @@ public:
       }
   } // end of constructor
 
+
   float draw_s()
   {
+
+    // drawing the selection coefficient from the appropriate distribution of fitness effects (DFE)
+
     switch(d)
       {
-      case 'f': return p[0]; 
-      case 'g': return gsl_ran_gamma(rng,p[1],p[0]/p[1]); // If the mean is negative,
-              // gsl_ran_gamma returns negative values.
-      case 'e': return gsl_ran_exponential(rng,p[0]); // Note that if the mean is negative,
-              // gsl_ran_exponential returns negative values.
-      default: exit(1);
-      }
+        case 'f': return p[0];
+        case 'g': return gsl_ran_gamma(rng, p[1], p[0]/p[1]); // If the mean is negative,
+          // gsl_ran_gamma returns negative values.
+        case 'e': return gsl_ran_exponential(rng, p[0]); // Note that if the mean is negative,
+          // gsl_ran_exponential returns negative values.
+        default: exit(1);
+      } // end of switch
   } // end of draw_s()
+
 }; // end of class mutation_type
 
 
@@ -274,8 +280,8 @@ public:
 
 class genomic_element_type
 {
-  // a genomic element type is specified by a vector of the mutation type identifiers off all 
-  // mutation types than can occur in such elements and a vector of their relative fractions.
+  // a genomic element type is specified by a vector of the mutation type identifiers of all
+  // mutation types than can occur in such elements, and a vector of their relative fractions.
   // examples: exon, intron, utr, intergenic, etc.
 
 private:
@@ -284,7 +290,7 @@ private:
 
 public:
 
-  vector<int>    m; // mutation types identifiers in this element
+  vector<int>    m; // identifiers of mutation types that can occur in this element type
   vector<double> g; // relative fractions of each mutation type
 
   genomic_element_type(vector<int> M, vector<double> G)
@@ -294,14 +300,15 @@ public:
 
     if (m.size() != g.size())
       { exit(1); }
-    double A[m.size()];
+    double A[m.size()]; // m.size() is the number of mutation types that can occur
     for (int i = 0; i < m.size(); i++)
-      { A[i] = g[i]; }
+      { A[i] = g[i]; } // weighing mutation types by their relative fractions
     LT = gsl_ran_discrete_preproc(G.size(), A);
   }
 
   int draw_mutation_type()
     { return m[gsl_ran_discrete(rng, LT)]; }
+
 }; // end of class genomic_element_type
 
 
@@ -315,115 +322,177 @@ private:
 
   // look-up tables
 
-  gsl_ran_discrete_t* LT_M; // mutation
-  gsl_ran_discrete_t* LT_R; // recombination
+  gsl_ran_discrete_t* LT_M; // mutation (weighting genomic elements by their length)
+  gsl_ran_discrete_t* LT_R; // recombination (weighting recombination strata by their length)
 
 public:
 
   map<int,mutation_type>        mutation_types;
-  map<int,genomic_element_type> genomic_element_types;
+  map<int,genomic_element_type> genomic_element_types; // storing the genomic element type that
+    // the genomic elements of this chromosome belong to
   vector<int>                   rec_x; // vector of end points of strata of a given recomb. rate
   vector<double>                rec_r; // vector of recombination rates for each stratum
 
   int    L;   // length of chromosome
-  double M;   // overall mutation rate
-  double R;   // overall recombination rate
+  double M;   // overall mutation rate, being built here as the product of the per-base pair rate
+    // times the cumulative length of all genomic elements making up the chromosome; initally
+    // assigned the per-base pair rate
+  double R;   // overall recombination rate, being built here as the cumulative sum of the products
+    // of the recombination rates and lengths of successive recombination strata in this
+    // chromosome; initially assigned the per-base pair rate
   double G_f; // gene conversion fraction
   double G_l; // average stretch length
 
   void initialize_rng()
   {
-    if (size() == 0)       { cerr << "ERROR (initialize): empty chromosome" << endl; exit(1); }
-    if (rec_r.size() == 0) { cerr << "ERROR (initialize): recombination rate not specified" << endl; exit(1); }
-    if (!(M>=0))           { cerr << "ERROR (initialize): invalid mutation rate" << endl; exit(1); }
+    if (size() == 0) // if there are no genomic elements (initialisation must have failed)
+      { cerr << "ERROR (initialize): empty chromosome" << endl;
+        exit(1);
+      }
+    if (rec_r.size() == 0) // if there are no recombination rates (initialisation must have failed)
+      { cerr << "ERROR (initialize): recombination rate not specified" << endl;
+        exit(1);
+      }
+    if (!(M >= 0)) // initially, M is assigned the per-base pair recombination rate
+      { cerr << "ERROR (initialize): invalid mutation rate" << endl;
+        exit(1);
+      }
 
-    L = 0;
+    L = 0; // cumulative length of chromosome visited over the course of the algorithm
 
-    for (int i=0; i<size(); i++) // size(): the number of genomic elements that make up this
+    // iterate over genomic elements
+
+    for (int i = 0; i < size(); i++) // size(): the number of genomic elements that make up this
       // chromosome
       {
-	if (genomic_element_types.count(operator[](i).i)==0) // the first 'i' is the iterator, the second
-    // 'i' is the identifier of the genomic element
-	  { 
-	    cerr << "ERROR (initialize): genomic element type " << operator[](i).i << " not defined" << endl; exit(1); 
-	  }
-      }
+        if (genomic_element_types.count(operator[](i).i) == 0) // the first 'i' is the iterator,
+          // the second 'i' is the identifier of the genomic element; if there are 0 genomic
+          // element types with identifier i for the genomic element i
+          {
+            cerr << "ERROR (initialize): genomic element type " << operator[](i).i << " not defined" << endl;
+            exit(1);
+          }
+      } // end of for each genomic element
 
-    for (map<int,genomic_element_type>::iterator it = genomic_element_types.begin(); it!=genomic_element_types.end(); it++)
+    // checking if mutation types are valid
+
+    // iterating over genomic element types
+    for (map<int,genomic_element_type>::iterator it = genomic_element_types.begin(); it !=genomic_element_types.end(); it++)
       {
-	for (int j=0; j<it->second.m.size(); j++)
-	  {
-	    if (mutation_types.count(it->second.m[j]) == 0)
-	      {
-	        cerr << "ERROR (initialize): mutation type " << it->second.m[j] << " not defined" << endl; exit(1); 
-	      }
-	  }
-      }  
+        // iterating over mutation types that can occur in the current genomic element type
+        for (int j = 0; j < it->second.m.size(); j++)
+          {
+            if (mutation_types.count(it->second.m[j]) == 0)
+              {
+                cerr << "ERROR (initialize): mutation type " << it->second.m[j] << " not defined" << endl;
+                exit(1);
+              }
+          }
+      } // end of iterating over genomic element types
 
-    double A[size()]; int l = 0;
-    for (int i=0; i<size(); i++) 
+    // initialising the look-up table for recombination, and the overall recombination rate
+
+    double A[size()]; // size() is the number of genomic elements that make up the chromosome
+    int l = 0; // cumulative length of genomic elements
+    // iterating over genomic elements
+    for (int i = 0; i < size(); i++)
       { 
-	if (operator[](i).e > L) { L = operator[](i).e; }
-	int l_i = operator[](i).e - operator[](i).s + 1.0; 
-	A[i] = (double)l_i; l += l_i;
-      }
-    LT_M = gsl_ran_discrete_preproc(size(),A); M = M*(double)l;
+        if (operator[](i).e > L)
+          {
+            L = operator[](i).e; // shifting the curser to the end of the current genomic element
+          }
+        int l_i = operator[](i).e - operator[](i).s + 1.0; // the length of the current element
+        A[i] = (double)l_i; // weight by length of current element
+        l += l_i;
+      } // end of iterating over genomic elements
 
-    double B[rec_r.size()];
-    B[0] = rec_r[0]*(double)rec_x[0]; R += B[0];
-    for (int i=1; i<rec_r.size(); i++) 
+    LT_M = gsl_ran_discrete_preproc(size(), A); // to draw genomic elements weighted by their
+      // length
+    M = M*(double)l; // scaling the per-base pair rate by the cumulative length of all genomic
+      // elements
+
+    // initialising the look-up table for recombination, and the overall recombination rate
+
+    double B[rec_r.size()]; // rec_r.size() is the number of recombination strata
+    B[0] = rec_r[0]*(double)rec_x[0]; // rec. rate of first stratum times length of first stratum
+    R += B[0]; // upsate overall recombination rate
+    // iterating over remaining recombination strata
+    for (int i = 1; i < rec_r.size(); i++)
       { 
-	B[i] = rec_r[i]*(double)(rec_x[i]-rec_x[i-1]); R+= B[i];
-	if (rec_x[i]>L) { L = rec_x[i]; }
+        B[i] = rec_r[i]*(double)(rec_x[i] - rec_x[i-1]); // weight of the ith recombination stratum
+        R+= B[i];
+        if (rec_x[i] > L) // L is the cumulative length of all genomic elements; at this point, it
+          // equals the length after all defined genomic elements have been visited; note that
+          // the whole chromosome does not need to be covered by genomic elements, which is why
+          // this update of L here is needed
+        { L = rec_x[i]; }
       }
-    LT_R = gsl_ran_discrete_preproc(rec_r.size(),B);
-  }
+    LT_R = gsl_ran_discrete_preproc(rec_r.size(), B);
+  } // end of method initialize_rng()
 
 
-  int draw_n_mut() { return gsl_ran_poisson(rng,M); } // to draw the total number of mutations
+  int draw_n_mut()
+  {
+    // draw the total number of mutations
+    return gsl_ran_poisson(rng, M); // M is the overall mutation rate
+  } // end of method draw_n_mut()
  
+
   mutation draw_new_mut()
   {
-    int g = gsl_ran_discrete(rng,LT_M); // genomic element
-    genomic_element_type ge_type = genomic_element_types.find(operator[](g).i)->second; // genomic element type
+    int g = gsl_ran_discrete(rng, LT_M); // draw genomic element, with weights given by
+      // length of element relative to the sum of lenghts of all elements
+    genomic_element_type ge_type = genomic_element_types.find(operator[](g).i)->second; // get the genomic element type of the genomic element g
 
-    int mut_type_id = ge_type.draw_mutation_type(); // mutation type id
+    int mut_type_id = ge_type.draw_mutation_type(); // drawing mutation type id according to
+      // relative weight of that type among all types allowed in genomic element type ge_type
     mutation_type mut_type = mutation_types.find(mut_type_id)->second; // mutation type
+      // corresponding to mutation type id mut_type_id
 
-    int   x = operator[](g).s + gsl_rng_uniform_int(rng,operator[](g).e - operator[](g).s + 1); // position    
+    // position of new mutation, uniformly chosen over the length of the genomic element
+    int x = operator[](g).s + gsl_rng_uniform_int(rng, operator[](g).e - operator[](g).s + 1);
+
     float s = mut_type.draw_s(); // selection coefficient
 
-    return mutation(mut_type_id,x,s);
-  }
+    return mutation(mut_type_id, x, s); // mutation type, position, selection coefficient
+
+  } // end of method draw_new_mut()
 
 
   vector<int> draw_breakpoints()
   {
-    vector<int> r;
-
     // draw recombination breakpoints
 
-    int nr = gsl_ran_poisson(rng,R);
+    vector<int> r; // vector of breakpoints, given as physical positions
 
-    for (int i=0; i<nr; i++)
+    int nr = gsl_ran_poisson(rng, R); // draw the random number of recombination events
+
+    // place these events along the genome
+
+    // iterating over recombination events
+    for (int i = 0; i < nr; i++)
       {
-	int x = 0;
-	int j = gsl_ran_discrete(rng,LT_R);
+        int x = 0;
+        int j = gsl_ran_discrete(rng, LT_R);
 
-	if (j==0) { x = gsl_rng_uniform_int(rng,rec_x[j]); }
-	else     { x = rec_x[j-1] + gsl_rng_uniform_int(rng,rec_x[j]-rec_x[j-1]); }
+        if (j == 0)
+          { x = gsl_rng_uniform_int(rng,rec_x[j]); }
+        else
+          { x = rec_x[j-1] + gsl_rng_uniform_int(rng,rec_x[j]-rec_x[j-1]); }
 
-	r.push_back(x);
+        r.push_back(x);
 
-	if (gsl_rng_uniform(rng)<G_f) // recombination results in gene conversion 
-	  {
-	    int x2 = x+gsl_ran_geometric(rng,1.0/G_l);
-	    r.push_back(x2);
-	  }
-      }
+        if (gsl_rng_uniform(rng) < G_f) // recombination results in gene conversion
+          {
+            int x2 = x+gsl_ran_geometric(rng,1.0/G_l);
+            r.push_back(x2);
+          } // end of recombination results in gene conversion
+      } // end of iterating over recombination events
 
     return r;
-  }
+
+  } // end of method draw_breakpoints()
+
 }; // end of class chromosome
 
 
@@ -703,12 +772,268 @@ public:
   double W(int i, int j, chromosome& chr, char& fi)
   {
     // calculate the fitness of the individual constituted by genomes i and j in the parent
+    // population, where i and j are indices to the vector population. Consider mutations
+    // on chromosome chr and assume fitness interaction type fi
+
+  double w = 1.0;
+
+    // a genome is a vector of mutations; recall that mutations in a genome are ordered by physical
+    // position
+  vector<mutation>::iterator pi = G_parent[i].begin(); // iterator pointing to the first mutation
+    // in the haploid genome i of the parental population
+  vector<mutation>::iterator pj = G_parent[j].begin();
+
+  vector<mutation>::iterator pi_max = G_parent[i].end(); // iterator pointing to the end of the
+    // vector with mutations in the haploid genome i of the parental population; does not point
+    // to an actual element, but to the virtual past-the-end element
+  vector<mutation>::iterator pj_max = G_parent[j].end();
+
+  while (w > 0 && (pi != pi_max || pj != pj_max)) // while fitness is strictly positive, and
+      // at least one parental genome has mutations not jet visited
+    {
+
+      // deal with all mutation except those residing at the same position x in the two parental
+      // genomes (i.e., exclude cases where distinction must be made between homo- and hetero
+      // zygotes)
+
+      // advance i while pi.x < pj.x (x is the physical position)
+      while (pi != pi_max && (pj == pj_max || (*pi).x < (*pj).x)) // while there are unvisited
+          // mutations left in genome i and (there are no unvisited mutations left in genome j or
+          // the position of the current mutation in genome i is smaller than that of the current
+          //  mutation in genome j)
+        {
+          if ((*pi).s != 0) // if this mutation in genome i is not neutral
+            {
+              // distinguish between two fitness regeimes (additive vs. multiplicative)
+              if (fi == 'a') // if fitness interaction is additive
+                {
+                  // TODO: Change to environment-specific fitnesses
+                  w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s; // the dominance
+                  // coefficient is a public variable of the class mutation type; the selection
+                  // coefficient is a public variable of the class mutation
+                } // fitness interaction is not additive
+              else if (fi == 'm') // ie fitness interaction is multiplicative
+                {
+                  // TODO: Change to environment-specific fitnesses
+                  w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
+                } // fitness interaction is neither additive nor multiplicative
+              else
+                { exit(1); }
+            } // end of if this mutation in i is not neutral
+          pi++;
+        } // end of advancing i while pi.x < pj.x; pi == pi_max || (*pi).x >= (*pj).x
+
+      // advance j while pj.x < pi.x (x is the physical position)
+      while (pj != pj_max && (pi == pi_max || (*pj).x < (*pi).x)) // while there are unvisited
+        // mutations left in genome j and (there are no unvisited mutations left in genome i or
+        // the position of the current mutation in genome j is smaller than that of the current
+        //  mutation in genome i)
+        {
+          if ((*pj).s != 0) // if this mutation in genome j is not neutral
+            {
+              // distinguish between two fitness regimes (additive vs. multiplicative)
+              if (fi == 'a') // if fitness interaction is additive
+                {
+                  // TODO: Change to environment-specific fitnesses
+                  w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s; // see above for
+                    // details
+                } // fitness interaction is not additive
+              else if (fi == 'm')
+                {
+                  // TODO: Change to environment-specific fitnesses
+                  w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
+                } // fitness interaction is neither additive nor multiplicative
+              else
+                { exit(1); }
+            } // end of if this mutation in j is not neutral
+          pj++;
+        } // end of advancing j while pj.x < pi.x; pj == pj_max || (*pj).x >= (*pi).x
+
+        // check for homozygotes and heterozygotes at position x
+
+      if (pi != pi_max && pj != pj_max && (*pj).x == (*pi).x) // if there are unvisited mutations
+        // left in both genomes i and j, and if the currently visited mutations are at the same
+        // physical position x
+        {
+          int x = (*pi).x;
+          int ns_i = 0; // no. of non-neutral mut. encountered in genome i at pos. x (must be <= 1)
+          int ns_j = 0; // no. of non-neutral mut. encountered in genome j at pos. x (must be <= 1)
+
+          vector<mutation>::iterator pi_start = pi;
+
+          // advance through pi, i.e. through mutations in genome i that reside at the same
+            // position; recall that one haploid genome can harbour more than one neutral mutation
+            // at the same position; however, no more than one non-neutral mutation at position x
+            // is allowed in the entire population
+          while (pi != pi_max && (*pi).x == x) // visiting all mutations in genome i that reside
+              // at a given physical position x
+            {
+              if ((*pi).s != 0.0) // if this mutation in genome i is not neutral
+                {
+                  vector<mutation>::iterator temp_j = pj;
+                  bool homo = 0;
+
+                  while (homo == 0 && temp_j != pj_max && (*temp_j).x == x) // advance through
+                    // mutations in genome j at position x, as long as no homozygote is found
+                    {
+                      // Note that no permanent mutation identifiers are stored for reasons of
+                        // computational efficiency (memory). Hence identity is assessed based on
+                        // mutation type and selection coefficient
+                      // TODO: Stick to the practice of not storing mutation identifiers, but
+                        // then identity must be defined based on properties (mutation type and
+                        // selection coefficient) in the reference environment.
+                      if ((*pi).t == (*temp_j).t && (*pi).s == (*temp_j).s) // if currently
+                        // visited mutations in genomes i and j are biologically the same
+                        // (identical by state)
+                        {
+                          // distinguish between two fitness regimes (additive vs.
+                            // multiplicative)
+                          if (fi == 'a')
+                            {
+                              // TODO: Change to environment-specific fitnesses
+                              w = w + (*pi).s;
+                              homo = 1;
+                            } // fitness interaction is not additive
+                          else if (fi == 'm')
+                            {
+                              w = w * (1.0 + (*pi).s);
+                              homo = 1;
+                            } // fitness interaction is neither additive nor multiplicative
+                          else
+                            { exit(1); }
+                        } // currently visited mutations are not the same; the parent is not
+                            // homozygous
+                      temp_j++;
+                    } // end of advance through mutations in genome j at position x, as long as
+                      // no homozygote is found
+                  if (homo == 0) // if the parent is not homozygous at position x
+                    // Note that this implementation (the original one in SLiM) is conceptually
+                      // flawed. Dominance is applied here only from the perspective of a focal
+                      // mutation (*pi), irrespective of the other mutation present. However,
+                      // dominance is a feature of the genotype.
+                    // Only one mutation of a non-neutral type is allowed at any given physicel
+                      // position (neutrality being defined w.r.t. the reference environment). It
+                      // will be the case then that the mutation at x in gemone
+                      // j must be a neutral one, given that the mutation at x in genome i is
+                      // non-neutral and the individual is heterozygous.
+                    {
+                      // distinguish between two fitness regimes (additive vs. multiplicative)
+                      if (fi == 'a')
+                        {
+                          // TODO: Change to environment-specific fitnesses
+                          w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s;
+                        }
+                      else if (fi == 'm')
+                        {
+                          // TODO: Change to environment-specific fitnesses
+                          w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
+                        }
+                      else
+                        { exit(1); }
+                    } // end of if parent is not homozygous
+                  ns_i++;
+                } // end of if this mutation in genome i is not neutral; hence, it is neutral
+              pi++;
+            } // end of visiting mutations in genome i that reside at the same physical pos. x
+
+          // advance through pj, i.e. through mutations in genome j that reside at the same
+            // position; recall that one haploid genome can harbour more than one neutral mutation
+            // at the same position; however, no more than one non-neutral mutation at position x
+            // is allowed in the entire population
+          while (pj != pj_max && (*pj).x == x) // visiting all mutations in genome j that reside
+              // at a given physical position x; note that x is the position of the focal mutation
+              // currently visited in the outer loop in genome i, but we are here in the
+              // situation where (*pj).x == (*pi).x holds.
+            {
+              if ((*pj).s != 0.0) // if this mutation in genome j is not neutral
+                {
+                  vector<mutation>::iterator temp_i = pi_start; // recall that pi_start was
+                    // assigned pi above, i.e. pi_start = pi, but in the meantime, pi has been
+                    // increased
+                  bool homo = 0;
+
+                  while (homo == 0 && temp_i != pi_max && (*temp_i).x == x) // advance through
+                      // mutations in genome i at position x, as long as no homozygote is found
+                    {
+                      // recall that homozygosity is defined as identity by state
+                      if ((*pj).t == (*temp_i).t && (*pj).s == (*temp_i).s) // if currently
+                        // visited mutations in genomes i and j are biologically the same
+                        // (identical by state)
+                        {
+                          // this genotype was encountered before and its contribution to fitness
+                          // has been incorporated
+                          homo = 1;
+                        }
+                      temp_i++;
+                    } // end of advance through mutations in genome i at position x, as long as
+                        // no homozygote is found
+                  if (homo == 0) // if the parent is not homozygous at position x
+                    // Note that this implementation (the original one in SLiM) is conceptually
+                      // flawed. Dominance is applied only from the perspective of a focal
+                      // mutation (*pj), irrespective of the other mutation present. However,
+                      // dominance is a feature of the genotype.
+                    // Only one mutation of a non-neutral type is allowed at any given physicel
+                      // position (neutrality being defined w.r.t. the reference environment). It
+                      // will be the case then that the mutation at x in gemone
+                      // j must be a neutral one, given that the mutation at x in genome i is
+                      // non-neutral and the individual is heterozygous.
+                    {
+                      // distinguish between two fitness regimes (additive vs. multiplicative)
+                      if (fi == 'a')
+                        {
+                          w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s;
+                        }
+                      else if (fi == 'm')
+                        {
+                          w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
+                        }
+                      else
+                        { exit(1); }
+                    } // end of if parent is not homozygous
+                  ns_j++;
+                } // end of if this mutation in genome j is not neutral; hence, it is neutral
+              pj++;
+            } // end of visiting mutations in genome j that reside at the same physical pos. x
+
+          if (ns_i > 1 || ns_j > 1) // encounteres more than one non-neutral mutation at pos. x
+            // in at least one parental haplotype
+            {
+              if (ns_i > 1)
+                {
+                  cerr << "ERROR (compute fitness): encountered " << ns_i << " non-neutral mutations at position " << x << " in parental genome " << i << "." << endl;
+                }
+              if (ns_j > 1)
+                {
+                  cerr << "ERROR (compute fitness): encountered " << ns_j << " non-neutral mutations at position " << x << " in parental genome " << j << "." << endl;
+                }
+              exit(1);
+            }
+        } // end of if there are unvisited mutations left in both genomes i and j, and if the
+            // currently visited mutations are at the same physical position x; there are either
+            // no unvisited mutations left in at least one genome, or physical positions are not
+            // the same
+    } // end of while fitness is strictly positive and at least one parental genome has mutations
+        // not yet visited; hence, fitness is either not strictly positive or at least one of the
+        // parental genomes has no more mutations left to be visited.
+
+  if (w < 0)
+    { w = 0.0; }
+
+  return w;
+
+  } // end of method W()
+
+
+  double oldW(int i, int j, chromosome& chr, char& fi)
+  {
+    // calculate the fitness of the individual constituted by genomes i and j in the parent
       // population, where i and j are indices to the vector population. Consider mutations
       // on chromosome chr and assume fitness interaction type fi
-    
+
     double w = 1.0;
 
-    // a genome is a vector of mutations
+    // a genome is a vector of mutations; recall that mutations in a genome are ordered by physical
+      // position
     vector<mutation>::iterator pi = G_parent[i].begin(); // iterator pointing to the first mutation
       // in the haploid genome i of the parental population
     vector<mutation>::iterator pj = G_parent[j].begin();
@@ -779,8 +1104,7 @@ public:
             pj++;
           } // end of advancing j while pj.x < pi.x; pj == pj_max || (*pj).x >= (*pi).x
 	
-        // check for homozygotes and heterozygotes at position x, if there are any left in both
-          // parental genomes
+        // check for homozygotes and heterozygotes at position x
 
         if (pi != pi_max && pj != pj_max && (*pj).x == (*pi).x) // if there are unvisited mutations
           // left in both genomes i and j, and if the currently visited mutations are at the same
@@ -847,7 +1171,9 @@ public:
                         // dominance is a feature of the genotype.
                       // TODO: Fix this by allowing only one mutation of a non-neutral type at any
                         // physical position (neutrality being defined w.r.t. the reference
-                        // environment)
+                        // environment). It will be the case then that the mutation at x in gemone
+                        // j must be a neutral one, given that the mutation at x in genome i is
+                        // non-neutral and the individual is heterozygous.
                       {
                         // distinguish between two fitness regimes (additive vs. multiplicative)
                         if (fi == 'a')
@@ -937,16 +1263,13 @@ public:
       } // end of while fitness is strictly positive and at least one parental genome has mutations
           // not yet visited; hence, fitness is either not strictly positive or at least one of the
           // parental genomes has no more mutations left to be visited.
-        // TODO: GO ON HERE NOW.
-        // TODO: I am worried that in a case where w is not strictly positive at a given stage of
-          // the algorithm, it may become positive later, due to the contribution of beneficial
-          // mutations not yet visited. Check if this worry is justified and if the implementation
-          // is correct.
+
     if (w < 0)
       { w = 0.0; }
 
     return w;
-  } // end of method W()
+
+  } // end of method oldW()
 
   void swap()
   {
@@ -955,7 +1278,7 @@ public:
   }
 }; // end of class subpopulation
 
-
+// TODO: GO ON HERE. Tidy up and understand details.
 class population : public map<int, subpopulation>
 {
   // the population is a map of subpopulations
@@ -1218,7 +1541,7 @@ public:
     // remove *consecutive* duplicate mutations
     // TODO: GO ON HERE, understanding what is done.
 	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end()); // operator ==: same position, same
-      // same mutation type, and same selection coefficient
+      // mutation type, and same selection coefficient (defined for comparison of mutation objects)
 	(*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
       }
 
@@ -1228,7 +1551,7 @@ public:
       { 
 	genome *g1 = &find(M.i)->second.G_child[2*j];
 	(*g1).push_back(m);
-	sort((*g1).begin(),(*g1).end());
+	sort((*g1).begin(),(*g1).end()); // sorting by physical position
     // remove duplicate mutations
 	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end());
       }
@@ -1413,14 +1736,18 @@ public:
 
     vector<mutation> M;
     int n_mut = chr.draw_n_mut();
-    for (int k=0; k<n_mut; k++) { M.push_back(chr.draw_new_mut()); }
-    sort(M.begin(),M.end());
+    // introduce n_mut new mutations
+    for (int k = 0; k < n_mut; k++)
+      {
+        M.push_back(chr.draw_new_mut());
+      }
+    sort(M.begin(), M.end()); // sort by physical position
     
     // create vector with recombination breakpoints
 
-    vector<int> R = chr.draw_breakpoints(); 
+    vector<int> R = chr.draw_breakpoints(); // breakpoints are physical positions
     R.push_back(chr.L+1);
-    sort(R.begin(),R.end());
+    sort(R.begin(), R.end());
     R.erase(unique(R.begin(),R.end()),R.end());
     
     vector<mutation>::iterator p1 = find(j)->second.G_parent[P1].begin();
