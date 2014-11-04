@@ -169,7 +169,8 @@ public:
           cerr << "\"" << endl;
           exit(1);
         }
-    }
+    } // end of constructor method
+
 }; // end of class event
 
 
@@ -238,25 +239,38 @@ class environment
 
 public:
 
-  map< int,vector<double> > h; // dominance coefficients for each mutation-type that is affected in
+  int i; // identifier of environment
+
+  map<int,double> h; // dominance coefficients for each mutation-type that is affected in
     // this environment relative to the reference environment; the key is the mutation-type
     // identifier
-  map< int,vector<double> > smodif; // modifier of selection coefficient for each mutation-
-    // type that is affected in this environment relative to the reference environment; the key is
-    // the mutation-type identifier
+  map< int,double> smodif; // modifier of selection coefficient for each mutation-type that is
+    // affected in this environment relative to the reference environment; the key is the mutation-
+    // type identifier
 
   // default constructor
   environment(void) { ; }
 
   // extended constructor
-  environment(map< int,vector<double> >& H, map< int,vector<double> >& SMODIF)
+  environment(int I, vector<int> M, vector<double> H, vector<double> SMODIF)
+  // I is the identifier of the environment, M the vector of mutation types affected, H the vector
+    // of dominance coefficients for the mutation types affected, and SMODIF the vector of
+    // modifiers of the selection coefficients for the mutation types affected
   {
 
-    h = H;
-    smodif = SMODIF;
+    i = I;
 
-    if ( h.size() != smodif.size())
+    if ( H.size() != M.size() || SMODIF.size() != M.size())
       { exit(1); }
+
+    // fill maps h and smodif
+
+    // for each affected mutation type
+    for (int i = 0; i < M.size(); i++)
+      {
+        h.insert(pair<int,double>(M[i], H[i]));
+        smodif.insert(pair<int,double>(M[i], SMODIF[i]));
+      } // end of for each affected mutation type
 
   } // end of constructor
 
@@ -1307,9 +1321,10 @@ public:
       }
 
     insert(pair<int, subpopulation>(i, subpopulation(N)));
+
   } // end of add_subpopulation() method
 
-
+  // TODO: GO ON HERE NEXT.
   void add_subpopulation(int i, int j, unsigned int N) 
   { 
     // add new subpopulation i of size N individuals drawn from source subpopulation j
@@ -1329,7 +1344,7 @@ public:
 	find(i)->second.G_parent[2*p] = find(j)->second.G_parent[2*m];
 	find(i)->second.G_parent[2*p+1] = find(j)->second.G_parent[2*m+1];
       }
-  }
+  } // end of add_subpopulation() [alt] method
 
 
   void set_size(int i, unsigned int N) 
@@ -1371,32 +1386,38 @@ public:
   }
 
 
+  /*
+   Executes event E in generation g for chromosome chr. The vector FM stores the id's of mutation
+   types to be tracked.
+   */
   void execute_event(event& E, int g, chromosome& chr, vector<int>& FM)
   {
     char type = E.t;
 
     if (type == 'P') // add subpopulation
       { 
-	if (E.np == 2) // empty subpopulation
-	  { 
-	    string sub = E.s[0]; sub.erase(0, 1);
+        if (E.np == 2) // empty subpopulation (i.e. not drawing from another existing
+          // subpopulation); np is the number of event-specific parameters
+          {
+            string sub = E.s[0];
+            sub.erase(0, 1); // erasing leading "p" for subpopulation
 
-	    int i = atoi(sub.c_str());
-	    int n = (int)atof(E.s[1].c_str());
-	    add_subpopulation(i,n);
-	  }
+            int i = atoi(sub.c_str()); // subpopulation identifier
+            int n = (int)atof(E.s[1].c_str()); // initial size of new subpopulation
+            add_subpopulation(i, n);
+          } // end of if empty subpopulation
 	      
-	if (E.np == 3) // drawn from source population
-	  {
-	    string sub1 = E.s[0]; sub1.erase(0,1);
-	    string sub2 = E.s[2]; sub2.erase(0,1);
+        if (E.np == 3) // drawn from source population
+          {
+            string sub1 = E.s[0]; sub1.erase(0,1);
+            string sub2 = E.s[2]; sub2.erase(0,1);
 
-	    int i = atoi(sub1.c_str());
-	    int j = atoi(sub2.c_str());
-	    int n = (int)atof(E.s[1].c_str());
-	    add_subpopulation(i,j,n);
-	  } 
-      }
+            int i = atoi(sub1.c_str());
+            int j = atoi(sub2.c_str());
+            int n = (int)atof(E.s[1].c_str());
+            add_subpopulation(i,j,n);
+          } // end of if draw from source population
+      } // end of if add subpopultion
 	  
     if (type == 'N') // set subpopulation size
       { 
@@ -1478,7 +1499,14 @@ public:
 	string sub = E.s[0]; sub.erase(0, 1);
 	FM.push_back(atoi(sub.c_str()));
       }
-  }
+
+    if (type == 'E') // assign environment to subpopulation
+      {
+        // TODO: Implement this.
+
+      } // end of if assign environment
+
+  } // end of execute_event() method
 
 
   void introduce_mutation(introduced_mutation M, chromosome& chr) 
@@ -3121,10 +3149,10 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
 /*
   Initialises the population P using parameter values to be read from file. Initialises chromosome
   chr, as well as demography and structure events E, output events O, user-defined mutations  IM
-  that will be introduced, and mutations PS undergoing partial sweeps. FI denotes the fitness
-  interaction
+  that will be introduced, and mutations PS undergoing partial sweeps. Moreover, fi denotes the
+  fitness interaction, and ev the vector of environments
 */
-void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, vector<string>& parameters)
+void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, map<int,environment>& ev, vector<string>& parameters)
 {
   string line; 
   string sub; 
@@ -3189,7 +3217,8 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                       i = atoi(sub.c_str()); // initialise mutation type id
                       if (chr.mutation_types.count(i) > 0) // assessed based on the key
                         {
-                          cerr << "ERROR (initialize): mutation type "<< i << " already defined" << endl; exit(1);
+                          cerr << "ERROR (initialize): mutation type "<< i << " already defined" << endl;
+                          exit(1);
                         }
 
                       iss >> sub;
@@ -3223,10 +3252,12 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub; // 'a' for additive; 'm' for multiplicative
-                      fi = sub.at(0); // assign fitness interaction
+                      fi = sub.at(0); // assign fitness interaction, with fi being a reference to a
+                        // global variable
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next input section or end of file
+              // TODO:
               // cout << "leaving fitness interaction (initialize)" << endl; // test
             } // end of fitness interaction section
 
@@ -3380,6 +3411,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                         // (time, event_type, event_parameters)
                       int t; char c;
                       vector<string> s;
+
                       istringstream iss(line);
                       iss >> sub;
                       t = (int)atof(sub.c_str());
@@ -3389,7 +3421,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                         {
                           s.push_back(sub.c_str()); // adding event parameters one by one
                         } // end of line reached
-                      E.insert(pair<int,event>(t,event(c, s))); // add demography and structure
+                      E.insert(pair<int,event>(t, event(c, s))); // add demography and structure
                         // event; note that time t is the key, and the collection is a multimap
                     } // end of if line is not empty
                   get_line(infile, line);
@@ -3410,14 +3442,20 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                     {
                       parameters.push_back(line);
                       // FORMAT: i m1 h1 s-modif1 [m2 h2 s-modif2 ...]
-                        // (identifier, mut type, dominance coeff., modifier of selection coeff.
-                        // , [mut type, dominance coeff., modifier of selection coeff., ...])
+                        // (identifier, mut type, dominance coeff., modifier of selection coeff.,
+                        // [mut type, dominance coeff., modifier of selection coeff., ...])
                       int i; vector<int> m; vector<double> h; vector<double> smodif;
                       istringstream iss(line);
 
                       iss >> sub;
                       sub.erase(0, 1); // erasing leading "e"
                       i = atoi(sub.c_str()); // initialising environemt id
+                      if (ev.count(i) > 0) // assessed based on the key; if environment already
+                        // present
+                        {
+                          cerr << "ERROR (initialize): environment " << i << " already defined" << endl;
+                          exit(1);
+                        } // environment not yet present
                       while (iss >> sub)
                         { // while there are multiples of three parameters to be read
                             sub.erase(0, 1); // erasing leading "m"
@@ -3428,7 +3466,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                             smodif.push_back(atof(sub.c_str())); // initialising modifier of
                               // selection coefficient
                         } // end of while there are multiples of three parameters to be read
-
+                      ev.insert(pair<int,environment>(i, environment(i, m, h, smodif)));
                     } // end of if line is not empty
                 } // end of while not hitting next input section
             } // end of environment section
@@ -3652,7 +3690,7 @@ int main(int argc,char *argv[])
   vector<partial_sweep> PS;
 
   // GO ON HERE: understand, and extend.
-  initialize(P, input_file, chr, T, FI, E, O, IM, PS, P.parameters);
+  initialize(P, input_file, chr, T, FI, E, O, IM, PS, EV, P.parameters);
  
   // evolve over t generations
 
@@ -3661,6 +3699,7 @@ int main(int argc,char *argv[])
       // execute demographic and substructure events in this generation 
 
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeE = E.equal_range(g);
+
       for (itE = rangeE.first; itE != rangeE.second; itE++)
         {
           P.execute_event(itE->second, g, chr, TM);
@@ -3686,7 +3725,7 @@ int main(int argc,char *argv[])
       // execute output events
 
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeO = O.equal_range(g);
-      for (itO = rangeO.first; itO != rangeO.second; itO++) { P.execute_event(itO->second,g,chr,TM); }
+      for (itO = rangeO.first; itO != rangeO.second; itO++) { P.execute_event(itO->second, g, chr, TM); }
 
       // track particular mutation-types and set s=0 for partial sweeps when completed
       
