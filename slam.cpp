@@ -239,12 +239,10 @@ class environment
 
 public:
 
-  int i; // identifier of environment
-
   map<int,double> h; // dominance coefficients for each mutation-type that is affected in
     // this environment relative to the reference environment; the key is the mutation-type
     // identifier
-  map< int,double> smodif; // modifier of selection coefficient for each mutation-type that is
+  map<int,double> smodif; // modifier of selection coefficient for each mutation-type that is
     // affected in this environment relative to the reference environment; the key is the mutation-
     // type identifier
 
@@ -252,13 +250,14 @@ public:
   environment(void) { ; }
 
   // extended constructor
-  environment(int I, vector<int> M, vector<double> H, vector<double> SMODIF)
-  // I is the identifier of the environment, M the vector of mutation types affected, H the vector
-    // of dominance coefficients for the mutation types affected, and SMODIF the vector of
-    // modifiers of the selection coefficients for the mutation types affected
+  // TODO: GO ON HERE. Find out why type chromosome is not recognised. Later, add construct from
+    // reference environment by default, then alter according to M, H, and SMODIF.
+  environment(chromosome& chr, vector<int> M, vector<double> H, vector<double> SMODIF)
+    // chr is the chromosome with all the mutation types
+    // M is the vector of mutation types affected
+    // H is the vector of dominance coefficients for the mutation types affected
+    // SMODIF the vector of modifiers of the selection coefficients for the mutation types affected
   {
-
-    i = I;
 
     if ( H.size() != M.size() || SMODIF.size() != M.size())
       { exit(1); }
@@ -273,6 +272,11 @@ public:
       } // end of for each affected mutation type
 
   } // end of constructor
+
+  void my_method(chromosome& chr)
+  {
+  ;
+  }
 
 }; // end of class environment
 
@@ -1324,15 +1328,26 @@ public:
 
   } // end of add_subpopulation() method
 
-  // TODO: GO ON HERE NEXT.
   void add_subpopulation(int i, int j, unsigned int N) 
   { 
     // add new subpopulation i of size N individuals drawn from source subpopulation j
 
-    if (count(i)!=0) { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " already exists" << endl; exit(1); }
-    if (count(j)==0) { cerr << "ERROR (add subpopulation): source subpopulation p"<< j << " does not exists" << endl; exit(1); }
-    if (N<1)         { cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl; exit(1); }
-
+    if (count(i) != 0)
+      {
+        cerr << "ERROR (add subpopulation): subpopulation p"<< i << " already exists" << endl;
+        exit(1);
+      }
+    if (count(j) == 0)
+      {
+        cerr << "ERROR (add subpopulation): source subpopulation p"<< j << " does not exists" << endl;
+        exit(1);
+      }
+    if (N < 1)
+      {
+        cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl;
+        exit(1);
+      }
+    // TODO: GO ON HERE NEXT.
     insert(pair<int,subpopulation>(i,subpopulation(N))); 
 
     for (int p=0; p<find(i)->second.N; p++)
@@ -3466,7 +3481,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                             smodif.push_back(atof(sub.c_str())); // initialising modifier of
                               // selection coefficient
                         } // end of while there are multiples of three parameters to be read
-                      ev.insert(pair<int,environment>(i, environment(i, m, h, smodif)));
+                      ev.insert(pair<int,environment>(i, environment(chr, m, h, smodif)));
                     } // end of if line is not empty
                 } // end of while not hitting next input section
             } // end of environment section
