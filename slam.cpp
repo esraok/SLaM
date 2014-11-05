@@ -232,55 +232,6 @@ public:
 }; // end of class mutation_type
 
 
-class environment
-{
-  // an environment reassigns a dominance coefficient and modifies the (mean) selection coefficient
-    // with respect to the reference environment and for a specified set of mutation types
-
-public:
-
-  map<int,double> h; // dominance coefficients for each mutation-type that is affected in
-    // this environment relative to the reference environment; the key is the mutation-type
-    // identifier
-  map<int,double> smodif; // modifier of selection coefficient for each mutation-type that is
-    // affected in this environment relative to the reference environment; the key is the mutation-
-    // type identifier
-
-  // default constructor
-  environment(void) { ; }
-
-  // extended constructor
-  // TODO: GO ON HERE. Find out why type chromosome is not recognised. Later, add construct from
-    // reference environment by default, then alter according to M, H, and SMODIF.
-  environment(chromosome& chr, vector<int> M, vector<double> H, vector<double> SMODIF)
-    // chr is the chromosome with all the mutation types
-    // M is the vector of mutation types affected
-    // H is the vector of dominance coefficients for the mutation types affected
-    // SMODIF the vector of modifiers of the selection coefficients for the mutation types affected
-  {
-
-    if ( H.size() != M.size() || SMODIF.size() != M.size())
-      { exit(1); }
-
-    // fill maps h and smodif
-
-    // for each affected mutation type
-    for (int i = 0; i < M.size(); i++)
-      {
-        h.insert(pair<int,double>(M[i], H[i]));
-        smodif.insert(pair<int,double>(M[i], SMODIF[i]));
-      } // end of for each affected mutation type
-
-  } // end of constructor
-
-  void my_method(chromosome& chr)
-  {
-  ;
-  }
-
-}; // end of class environment
-
-
 class genomic_element
 {
   // a genomic element has a genomic element type identifier (i), start (s) and end (e) position
@@ -724,6 +675,50 @@ genome polymorphic(genome& G1, genome& G2)
 
   return G;
 } // end of method polymorphic()
+
+
+class environment
+{
+    // an environment reassigns a dominance coefficient and modifies the (mean) selection coefficient
+    // with respect to the reference environment and for a specified set of mutation types
+
+public:
+
+  map<int,double> h; // dominance coefficients for each mutation-type that is affected in
+    // this environment relative to the reference environment; the key is the mutation-type
+    // identifier
+  map<int,double> smodif; // modifier of selection coefficient for each mutation-type that is
+    // affected in this environment relative to the reference environment; the key is the mutation-
+    // type identifier
+
+    // default constructor
+    environment(void) { ; }
+
+    // extended constructor
+    // TODO: GO ON HERE. Add construction from
+    // reference environment by default, then alter according to M, H, and SMODIF.
+  environment(chromosome& chr, vector<int> M, vector<double> H, vector<double> SMODIF)
+    // chr is the chromosome with all the mutation types
+    // M is the vector of mutation types affected
+    // H is the vector of dominance coefficients for the mutation types affected
+    // SMODIF the vector of modifiers of the selection coefficients for the mutation types affected
+  {
+
+  if ( H.size() != M.size() || SMODIF.size() != M.size())
+    { exit(1); }
+
+    // fill maps h and smodif
+
+    // for each affected mutation type
+  for (int i = 0; i < M.size(); i++)
+    {
+    h.insert(pair<int,double>(M[i], H[i]));
+    smodif.insert(pair<int,double>(M[i], SMODIF[i]));
+    } // end of for each affected mutation type
+
+  } // end of constructor
+
+}; // end of class environment
 
 
 class subpopulation
