@@ -281,7 +281,6 @@ public:
 }; // end of class genomic_element_type
 
 
-
 class chromosome : public vector<genomic_element> // class chromosome inherits from
     // vector<genomic_element>
 {
@@ -676,7 +675,6 @@ genome polymorphic(genome& G1, genome& G2)
   return G;
 } // end of method polymorphic()
 
-
 class environment
 {
     // an environment reassigns a dominance coefficient and modifies the (mean) selection coefficient
@@ -684,39 +682,81 @@ class environment
 
 public:
 
-  map<int,double> h; // dominance coefficients for each mutation-type that is affected in
-    // this environment relative to the reference environment; the key is the mutation-type
-    // identifier
-  map<int,double> smodif; // modifier of selection coefficient for each mutation-type that is
-    // affected in this environment relative to the reference environment; the key is the mutation-
-    // type identifier
+  map<int,double> h; // dominance coefficients for each mutation-type; the coefficient is by
+    // default equal to the one in the reference environment for each mutation-type, but can
+    // be changed for this environment by the user, for specific mutation-types; the key of h is
+    // the identifier of the affected mutation-types.
+  map<int,double> smodif; // modifier of selection coefficient for each mutation-type; the modifier
+    // is by default equal to 1, meaning that the selection coefficient is equal to the one in the
+    // reference environment. Yet, the modifier can be changed for this environment by the user,
+    // for specific mutation-types; the key of smodif is the identifier of the affected mutation-
+    // types.
 
-    // default constructor
-    environment(void) { ; }
+  // default constructor
+  environment(void) { ; }
 
-    // extended constructor
-    // TODO: GO ON HERE. Add construction from
-    // reference environment by default, then alter according to M, H, and SMODIF.
-  environment(chromosome& chr, vector<int> M, vector<double> H, vector<double> SMODIF)
-    // chr is the chromosome with all the mutation types
-    // M is the vector of mutation types affected
-    // H is the vector of dominance coefficients for the mutation types affected
-    // SMODIF the vector of modifiers of the selection coefficients for the mutation types affected
+  // extended constructor 1: initializes the reference environment
+  environment(chromosome& chr)
+    // chr is the chromosome with all mutation-types
   {
 
-  if ( H.size() != M.size() || SMODIF.size() != M.size())
-    { exit(1); }
+    // initialize by copying from the reference environment
 
-    // fill maps h and smodif
+    init(chr);
+
+  } // end of extended contstructor 1
+
+  // extended constructor 2: starts from the reference environment, then updates specified entries
+  environment(chromosome& chr, vector<int> MUp, vector<double> HUp, vector<double> SMODIFUp)
+    // chr is the chromosome with all the mutation-types
+    // MUp is the vector of mutation-types affected by a change relative to the reference
+    // environment
+    // HUp is the vector of dominance coefficients for the mutation-types affected by the change
+    // SMODIFUp is the vector of modifiers of the selection coefficients for the mutation-types
+    // affected by the change
+  {
+
+    if ( HUp.size() != MUp.size() || SMODIFUp.size() != MUp.size())
+      { exit(1); }
+
+    // initialize by copying from the reference environment
+
+    init(chr);
+
+    // alter maps h and smodif based on updates HUp, MUp, and SMODIFUp
+
+    // TODO: GO ON HERE NEXT. (11/05/2014)
 
     // for each affected mutation type
-  for (int i = 0; i < M.size(); i++)
-    {
-    h.insert(pair<int,double>(M[i], H[i]));
-    smodif.insert(pair<int,double>(M[i], SMODIF[i]));
-    } // end of for each affected mutation type
+    for (int i = 0; i < M.size(); i++)
+      {
+        h.insert(pair<int,double>(M[i], H[i]));
+        smodif.insert(pair<int,double>(M[i], SMODIF[i]));
+      } // end of for each affected mutation type
 
-  } // end of constructor
+  } // end of extended constructor 2
+
+private:
+
+  // initializes the environment as (a copy of) the reference environment implicitly defined
+    // by the mutation-types known for chromosome chr
+  void init(chromosome& chr)
+  {
+    map<int,mutation_type>::iterator mti; // iterator over mutation-types in chromosome chr
+
+    // iterate over mutation-types and retrieve dominance coefficients to initialize reference
+      // environment; at the same time, set the modifier of selection to 1 for each visited
+      // mutation-type
+
+    for (mti = chr.mutation_types.begin(); it != chr.mutation_types.end(); it++)
+      { // for each mutation-type in chromosome chr
+        // retrieve dominance coefficient
+        h.insert(pair<int,double>(mti->first, mti->second.h))
+        // assign default modifier of selection
+        smodif.insert(pair<int,double>(mti->first, 1.0))
+      } // end of for each mutation-type in chromosome chr
+
+  } // end of method init()
 
 }; // end of class environment
 
@@ -735,7 +775,7 @@ public:
   int    N; // population size  
   double S; // selfing fraction
 
-  environment E; // environment
+  int ei; // environment id
 
   vector<genome> G_parent; // parent population
   vector<genome> G_child; // offspring population
@@ -764,7 +804,7 @@ public:
   }
 
 
-  void update_fitness(chromosome& chr, char& fi)
+  void update_fitness(chromosome& chr, char& fi, map<int,environment> env)
   {
     // updating fitness given mutations on chromosome chr and fitness interaction of type fi
 
@@ -774,19 +814,21 @@ public:
     double A[(int)(G_parent.size()/2)]; // individuals are diploid
     for (int i = 0; i < (int)(G_parent.size()/2); i++)
       {
-        A[i] = W(2*i, 2*i+1, chr, fi); // recall that genomes are stored such that individual
-          // i is made up of haploid genomes 2*i and and 2*i + 1
+        A[i] = W(2*i, 2*i+1, chr, fi, env); // recall that genomes are stored such that
+          // individual i is made up of haploid genomes 2*i and and 2*i + 1
       }
     LT = gsl_ran_discrete_preproc((int)(G_parent.size()/2), A); // assigning weights to individuals
       // that correspond to their (abolute) fitness
   } // end of method update_fitness()
 
 
-  double W(int i, int j, chromosome& chr, char& fi)
+  double W(int i, int j, chromosome& chr, char& fi, map<int,environment>& env)
   {
     // calculate the fitness of the individual constituted by genomes i and j in the parent
     // population, where i and j are indices to the vector population. Consider mutations
-    // on chromosome chr and assume fitness interaction type fi
+    // on chromosome chr and assume fitness interaction type fi. Use dominance coefficients and
+    // modifiers of selection coefficients with respect to the environment ei of this
+    // subpopulation; env is the map of all environments
 
   double w = 1.0;
 
@@ -815,20 +857,31 @@ public:
           // the position of the current mutation in genome i is smaller than that of the current
           //  mutation in genome j)
         {
-          if ((*pi).s != 0) // if this mutation in genome i is not neutral
+          // neutrality is assessed w.r.t. the environment assigned to this subpopulation
+          if (env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s != 0) // if this mutation
+            // in genome i is not neutral in environment ei
             {
-              // distinguish between two fitness regeimes (additive vs. multiplicative)
+              // distinguish between two fitness regimes (additive vs. multiplicative)
               if (fi == 'a') // if fitness interaction is additive
                 {
-                  // TODO: Change to environment-specific fitnesses
+                  // DONE: Changed to environment-specific fitnesses
+                  w = w + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s; // the dominance coefficient is
+                    // chosen according to the environment ei assigned to this subpopulation; the
+                    // selection coefficient is modified according to the environment ei assigned
+                    // to this subpopulation
+                  /* OLD:
                   w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s; // the dominance
                   // coefficient is a public variable of the class mutation type; the selection
                   // coefficient is a public variable of the class mutation
+                  */
                 } // fitness interaction is not additive
               else if (fi == 'm') // ie fitness interaction is multiplicative
                 {
-                  // TODO: Change to environment-specific fitnesses
+                  // DONE: Changed to environment-specific fitnesses
+                  w = w * (1.0 + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s);
+                  /* OLD
                   w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
+                  */
                 } // fitness interaction is neither additive nor multiplicative
               else
                 { exit(1); }
@@ -842,19 +895,27 @@ public:
         // the position of the current mutation in genome j is smaller than that of the current
         //  mutation in genome i)
         {
-          if ((*pj).s != 0) // if this mutation in genome j is not neutral
+          // neutrality is assessed w.r.t. the environment assigned to this subpopulation
+          if (env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s != 0)// if this mutation
+            // in genome j is not neutral in environment ei
             {
               // distinguish between two fitness regimes (additive vs. multiplicative)
               if (fi == 'a') // if fitness interaction is additive
                 {
-                  // TODO: Change to environment-specific fitnesses
+                  // DONE: Changee to environment-specific fitnesses
+                  w = w + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s;
+                  /* OLD:
                   w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s; // see above for
                     // details
+                  */
                 } // fitness interaction is not additive
               else if (fi == 'm')
                 {
-                  // TODO: Change to environment-specific fitnesses
+                  // DONE: Changed to environment-specific fitnesses
+                  w = w * (1.0 + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s);
+                  /* OLD:
                   w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
+                  */
                 } // fitness interaction is neither additive nor multiplicative
               else
                 { exit(1); }
@@ -862,15 +923,20 @@ public:
           pj++;
         } // end of advancing j while pj.x < pi.x; pj == pj_max || (*pj).x >= (*pi).x
 
-        // check for homozygotes and heterozygotes at position x
+        // check for homozygotes and heterozygotes at position x, where homozygosity is determined
+          // as identity in state in the environment assigned to this subpopulation; note that
+          // this is identical to identity by descent here, because we allow for at most one non-
+          // neutral mutation at any given position in the entire population
 
       if (pi != pi_max && pj != pj_max && (*pj).x == (*pi).x) // if there are unvisited mutations
         // left in both genomes i and j, and if the currently visited mutations are at the same
         // physical position x
         {
           int x = (*pi).x;
-          int ns_i = 0; // no. of non-neutral mut. encountered in genome i at pos. x (must be <= 1)
-          int ns_j = 0; // no. of non-neutral mut. encountered in genome j at pos. x (must be <= 1)
+          int ns_i = 0; // number of mutations in genome i encountered at position x that are
+            // neutral in this subpopulation (must be <= 1)
+          int ns_j = 0; // number of mutations in genome j encountered at position x that are
+            // neutral in this subpopulation (must be <= 1)
 
           vector<mutation>::iterator pi_start = pi;
 
@@ -881,7 +947,9 @@ public:
           while (pi != pi_max && (*pi).x == x) // visiting all mutations in genome i that reside
               // at a given physical position x
             {
-              if ((*pi).s != 0.0) // if this mutation in genome i is not neutral
+              // neutrality is assessed w.r.t. the environment assigned to this subpopulation
+              if (env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s != 0) // if this
+                // mutation in genome i is not neutral in environment ei
                 {
                   vector<mutation>::iterator temp_j = pj;
                   bool homo = 0;
@@ -892,24 +960,30 @@ public:
                       // Note that no permanent mutation identifiers are stored for reasons of
                         // computational efficiency (memory). Hence identity is assessed based on
                         // mutation type and selection coefficient
-                      // TODO: Stick to the practice of not storing mutation identifiers, but
-                        // then identity must be defined based on properties (mutation type and
-                        // selection coefficient) in the reference environment.
-                      if ((*pi).t == (*temp_j).t && (*pi).s == (*temp_j).s) // if currently
+                      // DONE: Stuck to the practice of not storing mutation identifiers, but
+                        // now identity must be defined based on properties (mutation type and
+                        // selection coefficient) in the *reference environment*.
+                      if ((*pi).t == (*temp_j).t && env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s == env.find(ei)->second.smodif.find((*temp_j).t)->second * (*temp_j).s) // if currently
                         // visited mutations in genomes i and j are biologically the same
-                        // (identical by state)
+                        // (identical by state in environment ei)
                         {
                           // distinguish between two fitness regimes (additive vs.
                             // multiplicative)
                           if (fi == 'a')
                             {
-                              // TODO: Change to environment-specific fitnesses
+                              // DONE: Changed to environment-specific fitnesses
+                              w = w + env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s;
+                              /* OLD:
                               w = w + (*pi).s;
+                              */
                               homo = 1;
                             } // fitness interaction is not additive
                           else if (fi == 'm')
                             {
+                              w = w * (1.0 + env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s);
+                              /* OLD:
                               w = w * (1.0 + (*pi).s);
+                              */
                               homo = 1;
                             } // fitness interaction is neither additive nor multiplicative
                           else
@@ -918,28 +992,34 @@ public:
                             // homozygous
                       temp_j++;
                     } // end of advance through mutations in genome j at position x, as long as
-                      // no homozygote is found
+                        // no homozygote is found
                   if (homo == 0) // if the parent is not homozygous at position x
-                    // Note that this implementation (the original one in SLiM) is conceptually
-                      // flawed. Dominance is applied here only from the perspective of a focal
+                    // Note that the original implementation (SLiM vs. 1.x) was conceptually
+                      // flawed. Dominance was applied only from the perspective of a focal
                       // mutation (*pi), irrespective of the other mutation present. However,
                       // dominance is a feature of the genotype.
-                    // Only one mutation of a non-neutral type is allowed at any given physicel
-                      // position (neutrality being defined w.r.t. the reference environment). It
-                      // will be the case then that the mutation at x in gemone
+                    // New: Only one mutation of a non-neutral type is allowed at any given
+                      // physical position (neutrality being defined w.r.t. the reference
+                      // environment). It then has to be the case that the mutation at x in gemone
                       // j must be a neutral one, given that the mutation at x in genome i is
                       // non-neutral and the individual is heterozygous.
                     {
                       // distinguish between two fitness regimes (additive vs. multiplicative)
                       if (fi == 'a')
                         {
-                          // TODO: Change to environment-specific fitnesses
+                          // DONE: Changed to environment-specific fitnesses
+                          w = w + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s;
+                          /* OLD:
                           w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s;
+                          */
                         }
                       else if (fi == 'm')
                         {
-                          // TODO: Change to environment-specific fitnesses
+                          // DONE: Changed to environment-specific fitnesses
+                          w = w * (1.0 + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s);
+                          /* OLD:
                           w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
+                          */
                         }
                       else
                         { exit(1); }
@@ -958,7 +1038,8 @@ public:
               // currently visited in the outer loop in genome i, but we are here in the
               // situation where (*pj).x == (*pi).x holds.
             {
-              if ((*pj).s != 0.0) // if this mutation in genome j is not neutral
+              // neutrality is assessed w.r.t. the environment assigned to this subpopulation
+              if (env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s != 0.0) // if this mutation in genome j is not neutral in environment ei
                 {
                   vector<mutation>::iterator temp_i = pi_start; // recall that pi_start was
                     // assigned pi above, i.e. pi_start = pi, but in the meantime, pi has been
@@ -968,10 +1049,10 @@ public:
                   while (homo == 0 && temp_i != pi_max && (*temp_i).x == x) // advance through
                       // mutations in genome i at position x, as long as no homozygote is found
                     {
-                      // recall that homozygosity is defined as identity by state
-                      if ((*pj).t == (*temp_i).t && (*pj).s == (*temp_i).s) // if currently
-                        // visited mutations in genomes i and j are biologically the same
-                        // (identical by state)
+                      // recall that homozygosity is defined as identity by state in the
+                        // environment assigned to this subpopulation
+                      if ((*pj).t == (*temp_i).t && env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s == env.find(ei)->second.smodif.find((*temp_i).t)->second * (*temp_i).s) // if currently visited mutations in genomes i and j are
+                        // biologically the same (identical by state) in environment ei
                         {
                           // this genotype was encountered before and its contribution to fitness
                           // has been incorporated
@@ -985,20 +1066,28 @@ public:
                       // flawed. Dominance is applied only from the perspective of a focal
                       // mutation (*pj), irrespective of the other mutation present. However,
                       // dominance is a feature of the genotype.
-                    // Only one mutation of a non-neutral type is allowed at any given physicel
+                    // Only one mutation of a non-neutral type is allowed at any given physical
                       // position (neutrality being defined w.r.t. the reference environment). It
-                      // will be the case then that the mutation at x in gemone
+                      // then has to be the case that the mutation at position x in gemone
                       // j must be a neutral one, given that the mutation at x in genome i is
                       // non-neutral and the individual is heterozygous.
                     {
                       // distinguish between two fitness regimes (additive vs. multiplicative)
                       if (fi == 'a')
                         {
+                          // DONE: Changed to environment-specific fitnesses
+                          w = w + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s;
+                          /* OLD:
                           w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s;
+                          */
                         }
                       else if (fi == 'm')
                         {
+                          // DONE: Changed to environment-specific fitnesses
+                          w = w * (1.0 + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s);
+                          /* OLD:
                           w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
+                          */
                         }
                       else
                         { exit(1); }
@@ -1072,7 +1161,7 @@ public:
           {
             if ((*pi).s != 0) // if this mutation in genome i is not neutral
               {
-                // distinguish between two fitness regeimes (additive vs. multiplicative)
+                // distinguish between two fitness regimes (additive vs. multiplicative)
                 if (fi == 'a') // if fitness interaction is additive
                   {
                     // TODO: Change to environment-specific fitnesses
@@ -1184,9 +1273,9 @@ public:
                         // dominance is a feature of the genotype.
                       // TODO: Fix this by allowing only one mutation of a non-neutral type at any
                         // physical position (neutrality being defined w.r.t. the reference
-                        // environment). It will be the case then that the mutation at x in gemone
-                        // j must be a neutral one, given that the mutation at x in genome i is
-                        // non-neutral and the individual is heterozygous.
+                        // environment). It then has to be the case that the mutation at x in
+                        // gemone j must be a neutral one, given that the mutation at x in genome i
+                        // is non-neutral and the individual is heterozygous.
                       {
                         // distinguish between two fitness regimes (additive vs. multiplicative)
                         if (fi == 'a')
@@ -1230,10 +1319,8 @@ public:
                     while (homo == 0 && temp_i != pi_max && (*temp_i).x == x) // advance through
                       // mutations in genome i at position x, as long as no homozygote is found
                       {
-                        // homozygosity is defined as identity by state here
-                        // TODO: Stick to the practice of not storing mutation identifiers, but
-                        // then identity must be defined based on properties (mutation type and
-                        // selection coefficient) in the reference environment.
+                        // homozygosity is defined as identity by state in the environment assigned
+                          // to this subpopulation
                         if ((*pj).t == (*temp_i).t && (*pj).s == (*temp_i).s) // if currently
                           // visited mutations in genomes i and j are biologically the same
                             // (identical by state)
@@ -1252,7 +1339,7 @@ public:
                         // dominance is a feature of the genotype.
                       // TODO: Fix this by allowing only one mutation of a non-neutral type at any
                         // physical position (neutrality being defined w.r.t. the reference
-                        // environment)
+                        // environment; this is taken care of when mutations are introduced)
                       {
                         // distinguish between two fitness regimes (additive vs. multiplicative)
                         if (fi == 'a')
@@ -1849,7 +1936,7 @@ public:
   }
 
 
-  void swap_generations(int g, chromosome& chr, char& fi)
+  void swap_generations(int g, chromosome& chr, char& fi, map<int,environment>& env)
   {
 
     // perform change of generation at time g and update fitnesses given mutations on chromosome
@@ -1864,7 +1951,7 @@ public:
     for (it = begin(); it != end(); it++) // iterating over subpopulations
       { 
         it->second.swap();
-        it->second.update_fitness(chr, fi);
+        it->second.update_fitness(chr, fi, env);
       } // end of iterating over subpopulations
   } // end of method swap_generations()
 
@@ -2163,6 +2250,7 @@ public:
   } // end of add_mut() method
 
 }; // end of class 'population'
+
 
 
 void get_line(ifstream& infile, string& line)
@@ -3073,7 +3161,7 @@ void check_input_file(char* file)
 } // end of method check_input_file()
 
 
-void initialize_from_file(population& P, const char* file, chromosome& chr, char& fi)
+void initialize_from_file(population& P, const char* file, chromosome& chr, char& fi, map<int,environment>& env)
 {
   // initialize population from file
 
@@ -3152,7 +3240,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
 
   for (P.it = P.begin(); P.it != P.end(); P.it++)
     {
-      P.it->second.update_fitness(chr, fi);
+      P.it->second.update_fitness(chr, fi, env);
     }
 } // end of initialize_from_file()
 
@@ -3162,7 +3250,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
   that will be introduced, and mutations PS undergoing partial sweeps. Moreover, fi denotes the
   fitness interaction, and ev the vector of environments
 */
-void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, map<int,environment>& ev, vector<string>& parameters)
+void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, map<int,environment>& env, vector<string>& parameters)
 {
   string line; 
   string sub; 
@@ -3460,7 +3548,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                       iss >> sub;
                       sub.erase(0, 1); // erasing leading "e"
                       i = atoi(sub.c_str()); // initialising environemt id
-                      if (ev.count(i) > 0) // assessed based on the key; if environment already
+                      if (env.count(i) > 0) // assessed based on the key; if environment already
                         // present
                         {
                           cerr << "ERROR (initialize): environment " << i << " already defined" << endl;
@@ -3476,7 +3564,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                             smodif.push_back(atof(sub.c_str())); // initialising modifier of
                               // selection coefficient
                         } // end of while there are multiples of three parameters to be read
-                      ev.insert(pair<int,environment>(i, environment(chr, m, h, smodif)));
+                      env.insert(pair<int,environment>(i, environment(chr, m, h, smodif)));
                     } // end of if line is not empty
                 } // end of while not hitting next input section
             } // end of environment section
@@ -3500,7 +3588,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                       iss >> sub;
                       t = (int)atof(sub.c_str());
                       iss >> sub;
-                      c = sub.at(0); // envent type can be A, R, F
+                      c = sub.at(0); // event type can be A, R, F
                       while (iss >> sub) // while there are more entries on that line
                         {
                           s.push_back(sub.c_str()); // adding event parameters one by one
@@ -3601,7 +3689,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub;
-                      initialize_from_file(P, sub.c_str(), chr, fi);
+                      initialize_from_file(P, sub.c_str(), chr, fi, env);
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next section or end of file
@@ -3686,10 +3774,13 @@ int main(int argc,char *argv[])
     // is time
   multimap<int,introduced_mutation>::iterator itIM;
 
-  // environments (all except the reference environment)
+  // user-defined environments (all except the reference environment)
 
   map<int,environment> EV; // unique keys
   map<int,environment>::iterator itEV;
+
+  // reference environment
+  environment REV;
 
   // tracked mutation-types
 
@@ -3743,6 +3834,6 @@ int main(int argc,char *argv[])
 
       // swap generations
 
-      P.swap_generations(g, chr, FI);
+      P.swap_generations(g, chr, FI, EV);
     }
 } // end of method main()
