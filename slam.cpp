@@ -71,6 +71,15 @@
   // allowed. If, however, the non-neutral mutation at a given site is lost from the population,
   // the site will be considered as a neutral site again, and can accumulate at most one mutation
   // of a non-neutral type.
+// xx/xx/2014: Changed the mutation regime such that if a new non-neutral mutation is introduced
+  // at a position at which a non-neutral mutation preexists, the preexisting mutation is assigned
+  // a selection coefficient of zero (irrespective of its original mutation type) unless the
+  // mutation to be introduced and the preexisting mutation are identical in state (i.e. they
+  // have the same mutation type and identical selection coefficients in the reference
+  // environment). This regime allows for recurrent mutation to the very same (in terms of state)
+  // allele, but prevents more than two different non-neutral alleles (in terms of state) at any
+  // site across the entire population. The regime grants a consistent handling of dominance, but
+  // introduces a potential bias in the migration rate, because some mutations are not allowed.
   //
 // xx/xx/2014: Reformatted the code so that it follows more or less the GNU indent style, where it
   // did not do so before.
@@ -677,8 +686,9 @@ genome polymorphic(genome& G1, genome& G2)
 
 class environment
 {
-    // an environment reassigns a dominance coefficient and modifies the (mean) selection coefficient
-    // with respect to the reference environment and for a specified set of mutation types
+    // an environment reassigns a dominance coefficient and modifies the (mean) selection
+    // coefficient with respect to the reference environment and for a specified set of mutation
+    // types
 
 public:
 
@@ -710,10 +720,12 @@ public:
   environment(chromosome& chr, vector<int> MUp, vector<double> HUp, vector<double> SMODIFUp)
     // chr is the chromosome with all the mutation-types
     // MUp is the vector of mutation-types affected by a change relative to the reference
-    // environment
-    // HUp is the vector of dominance coefficients for the mutation-types affected by the change
+    //    environment
+    // HUp is the vector of dominance coefficients for the mutation-types affected by the change;
+    //    the order of the entries must correspond to the order of the entries in MUp
     // SMODIFUp is the vector of modifiers of the selection coefficients for the mutation-types
-    // affected by the change
+    //    affected by the change; the order of the entries must correspond to the order of the
+    //    entries in MUp
   {
 
     if ( HUp.size() != MUp.size() || SMODIFUp.size() != MUp.size())
@@ -725,13 +737,11 @@ public:
 
     // alter maps h and smodif based on updates HUp, MUp, and SMODIFUp
 
-    // TODO: GO ON HERE NEXT. (11/05/2014)
-
     // for each affected mutation type
-    for (int i = 0; i < M.size(); i++)
+    for (int i = 0; i < MUp.size(); i++)
       {
-        h.insert(pair<int,double>(M[i], H[i]));
-        smodif.insert(pair<int,double>(M[i], SMODIF[i]));
+        h.insert(pair<int,double>(MUp[i], HUp[i]));
+        smodif.insert(pair<int,double>(MUp[i], SMODIFUp[i]));
       } // end of for each affected mutation type
 
   } // end of extended constructor 2
@@ -746,14 +756,14 @@ private:
 
     // iterate over mutation-types and retrieve dominance coefficients to initialize reference
       // environment; at the same time, set the modifier of selection to 1 for each visited
-      // mutation-type
+      // mutation-type (which means no modification w.r.t. the reference environment)
 
-    for (mti = chr.mutation_types.begin(); it != chr.mutation_types.end(); it++)
+    for (mti = chr.mutation_types.begin(); mti != chr.mutation_types.end(); mti++)
       { // for each mutation-type in chromosome chr
         // retrieve dominance coefficient
-        h.insert(pair<int,double>(mti->first, mti->second.h))
+        h.insert(pair<int,double>(mti->first, mti->second.h));
         // assign default modifier of selection
-        smodif.insert(pair<int,double>(mti->first, 1.0))
+        smodif.insert(pair<int,double>(mti->first, 1.0));
       } // end of for each mutation-type in chromosome chr
 
   } // end of method init()
@@ -793,6 +803,7 @@ public:
       { A[i] = 1.0; }
     LT = gsl_ran_discrete_preproc(N, A); // to draw individuals at random, with uniform weights
 
+    // TODO: GO ON HERE NEXT (11/13/2014).
     // TODO: Assign the reference environment.
 
   } // end of constructor
@@ -934,16 +945,17 @@ public:
         {
           int x = (*pi).x;
           int ns_i = 0; // number of mutations in genome i encountered at position x that are
-            // neutral in this subpopulation (must be <= 1)
+            // non-neutral in this subpopulation (must be <= 1)
           int ns_j = 0; // number of mutations in genome j encountered at position x that are
-            // neutral in this subpopulation (must be <= 1)
+            // non-neutral in this subpopulation (must be <= 1)
 
           vector<mutation>::iterator pi_start = pi;
 
           // advance through pi, i.e. through mutations in genome i that reside at the same
             // position; recall that one haploid genome can harbour more than one neutral mutation
             // at the same position; however, no more than one non-neutral mutation at position x
-            // is allowed in the entire population
+            // is allowed in the entire population; identity of mutations is measured in terms
+            // of mutation type and selection coefficient in the reference environment
           while (pi != pi_max && (*pi).x == x) // visiting all mutations in genome i that reside
               // at a given physical position x
             {
@@ -1097,7 +1109,7 @@ public:
               pj++;
             } // end of visiting mutations in genome j that reside at the same physical pos. x
 
-          if (ns_i > 1 || ns_j > 1) // encounteres more than one non-neutral mutation at pos. x
+          if (ns_i > 1 || ns_j > 1) // encountered more than one non-neutral mutation at pos. x
             // in at least one parental haplotype
             {
               if (ns_i > 1)
@@ -1299,12 +1311,7 @@ public:
               // position; recall that one (haploid!) 'genome' can harbour more than one mutation
               // at the same position, as long as the mutations do not have the same type AND
               // selection coefficient.
-            // TODO: Change this. Allow for only two segregating mutations of a non-neutral type at
-              // a given physical position in the whole population. Probably best to handle this
-              // case when mutations are created, but then do a check here, and exit if the rule is
-              // broken.
-
-            while (pj != pj_max && (*pj).x == x) // visiting all mutations in genome j that reside
+           while (pj != pj_max && (*pj).x == x) // visiting all mutations in genome j that reside
               // at a given physical position x; note that x is the position of the focal mutation
                 // currently visited in the outer loop in genome i, but we are here in the
                 // situation where (*pj).x == (*pi).x holds.
@@ -1337,9 +1344,6 @@ public:
                         // flawed. Dominance is applied only from the perspective of a focal
                         // mutation (*pj), irrespective of the other mutation present. However,
                         // dominance is a feature of the genotype.
-                      // TODO: Fix this by allowing only one mutation of a non-neutral type at any
-                        // physical position (neutrality being defined w.r.t. the reference
-                        // environment; this is taken care of when mutations are introduced)
                       {
                         // distinguish between two fitness regimes (additive vs. multiplicative)
                         if (fi == 'a')
@@ -1429,7 +1433,7 @@ public:
         cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl;
         exit(1);
       }
-    // TODO: GO ON HERE NEXT.
+    // TODO: GO ON HERE after looking into constructor of subpopulation and class subpopulation.
     insert(pair<int,subpopulation>(i,subpopulation(N))); 
 
     for (int p=0; p<find(i)->second.N; p++)
@@ -1609,10 +1613,12 @@ public:
   void introduce_mutation(introduced_mutation M, chromosome& chr) 
   {
     // introduce user-defined mutation
-    // TODO: Make sure that if a mutation is to be introduced at a position at which there already
-        // is a mutation of a non-neutral type present, the pre-existing mutation is re-assigned
-        // a neutral type (there must be only one mutation of a non-neutral type at any site
-        // at any time)
+    // TODO: If a non-neutral mutation is to be introduced at a position at which there already
+      // is a non-neutral mutation, the preexisting mutation must be re-assigned a neutral type
+      // unless the mutation to be introduced and the preexisting mutation are identical in state
+      // (i.e. they are of the same mutation type and have identical selection coefficients).
+    // TODO: In addition to the rule above, do not allow more than one mutation at a given position
+      // in a given haploid genome.
     if (count(M.i)==0) { cerr << "ERROR (predetermined mutation): subpopulation "<< M.i << " does not exists" << endl; exit(1); }
     if (chr.mutation_types.count(M.t) == 0) 
       { 

@@ -1,0 +1,4 @@
+- Constructor subpopulation must take reference to an environment
+- Class subpopulation must have method to set the environment
+- All methods that call the subpopulation constructor must pass a reference to an environment to the constructor. Affected methods: add_subpopulatio(), execute_event(), initialize_from_file()
+- A subpopulation can only be constructed and assigned an environment if the respective environment has already been defined
