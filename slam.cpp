@@ -784,8 +784,7 @@ public:
 
   int    N; // population size  
   double S; // selfing fraction
-
-  int ei; // environment id
+  environment E; // environment
 
   vector<genome> G_parent; // parent population
   vector<genome> G_child; // offspring population
@@ -793,29 +792,36 @@ public:
   map<int,double> m; // m[i]: fraction made up of migrants from subpopulation i per generation
  
   // constructor
-  subpopulation(int n)
+  subpopulation(int n, const environment& e)
+    // n is the population size, e a reference to the environment assigned to this subpopulation
+      // (by default, the reference environment is assigned)
   {
     N = n;
     S = 0.0;
-    G_parent.resize(2*N); G_child.resize(2*N);
+    E = e;
+    G_parent.resize(2*N);
+    G_child.resize(2*N);
+
     double A[N];
+
     for (int i = 0; i < N; i++)
       { A[i] = 1.0; }
-    LT = gsl_ran_discrete_preproc(N, A); // to draw individuals at random, with uniform weights
 
-    // TODO: GO ON HERE NEXT (11/13/2014).
-    // TODO: Assign the reference environment.
+    LT = gsl_ran_discrete_preproc(N, A); // to draw individuals at random, with uniform weights
 
   } // end of constructor
 
+  void assign_environment(environment& e)
+  {
+    E = e;
+  }
 
   int draw_individual()
   {
     return gsl_ran_discrete(rng, LT);
   }
 
-
-  void update_fitness(chromosome& chr, char& fi, map<int,environment> env)
+  void update_fitness(chromosome& chr, char& fi)
   {
     // updating fitness given mutations on chromosome chr and fitness interaction of type fi
 
@@ -825,7 +831,7 @@ public:
     double A[(int)(G_parent.size()/2)]; // individuals are diploid
     for (int i = 0; i < (int)(G_parent.size()/2); i++)
       {
-        A[i] = W(2*i, 2*i+1, chr, fi, env); // recall that genomes are stored such that
+        A[i] = W(2*i, 2*i+1, chr, fi); // recall that genomes are stored such that
           // individual i is made up of haploid genomes 2*i and and 2*i + 1
       }
     LT = gsl_ran_discrete_preproc((int)(G_parent.size()/2), A); // assigning weights to individuals
@@ -833,13 +839,13 @@ public:
   } // end of method update_fitness()
 
 
-  double W(int i, int j, chromosome& chr, char& fi, map<int,environment>& env)
+  double W(int i, int j, chromosome& chr, char& fi)
   {
     // calculate the fitness of the individual constituted by genomes i and j in the parent
     // population, where i and j are indices to the vector population. Consider mutations
     // on chromosome chr and assume fitness interaction type fi. Use dominance coefficients and
-    // modifiers of selection coefficients with respect to the environment ei of this
-    // subpopulation; env is the map of all environments
+    // modifiers of selection coefficients with respect to the environment e of this
+    // subpopulation;
 
   double w = 1.0;
 
@@ -869,16 +875,16 @@ public:
           //  mutation in genome j)
         {
           // neutrality is assessed w.r.t. the environment assigned to this subpopulation
-          if (env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s != 0) // if this mutation
-            // in genome i is not neutral in environment ei
+          if (E.smodif.find((*pi).t)->second * (*pi).s != 0) // if this mutation
+            // in genome i is not neutral in environment with id EI
             {
               // distinguish between two fitness regimes (additive vs. multiplicative)
               if (fi == 'a') // if fitness interaction is additive
                 {
                   // DONE: Changed to environment-specific fitnesses
-                  w = w + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s; // the dominance coefficient is
-                    // chosen according to the environment ei assigned to this subpopulation; the
-                    // selection coefficient is modified according to the environment ei assigned
+                  w = w + E.h.find((*pi).t)->second * E.smodif.find((*pi).t)->second * (*pi).s; // the dominance coefficient is
+                    // chosen according to the environment EI assigned to this subpopulation; the
+                    // selection coefficient is modified according to the environment EI assigned
                     // to this subpopulation
                   /* OLD:
                   w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s; // the dominance
@@ -889,11 +895,11 @@ public:
               else if (fi == 'm') // ie fitness interaction is multiplicative
                 {
                   // DONE: Changed to environment-specific fitnesses
-                  w = w * (1.0 + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s);
+                  w = w * (1.0 + E.h.find((*pi).t)->second * E.smodif.find((*pi).t)->second * (*pi).s);
                   /* OLD
                   w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
                   */
-                } // fitness interaction is neither additive nor multiplicative
+                } // fitness interaction is nEIther additive nor multiplicative
               else
                 { exit(1); }
             } // end of if this mutation in i is not neutral
@@ -907,14 +913,14 @@ public:
         //  mutation in genome i)
         {
           // neutrality is assessed w.r.t. the environment assigned to this subpopulation
-          if (env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s != 0)// if this mutation
-            // in genome j is not neutral in environment ei
+          if (E.smodif.find((*pj).t)->second * (*pj).s != 0)// if this mutation
+            // in genome j is not neutral in environment EI
             {
               // distinguish between two fitness regimes (additive vs. multiplicative)
               if (fi == 'a') // if fitness interaction is additive
                 {
                   // DONE: Changee to environment-specific fitnesses
-                  w = w + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s;
+                  w = w + E.h.find((*pj).t)->second * E.smodif.find((*pj).t)->second * (*pj).s;
                   /* OLD:
                   w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s; // see above for
                     // details
@@ -923,7 +929,7 @@ public:
               else if (fi == 'm')
                 {
                   // DONE: Changed to environment-specific fitnesses
-                  w = w * (1.0 + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s);
+                  w = w * (1.0 + E.h.find((*pj).t)->second * E.smodif.find((*pj).t)->second * (*pj).s);
                   /* OLD:
                   w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
                   */
@@ -960,8 +966,8 @@ public:
               // at a given physical position x
             {
               // neutrality is assessed w.r.t. the environment assigned to this subpopulation
-              if (env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s != 0) // if this
-                // mutation in genome i is not neutral in environment ei
+              if (E.smodif.find((*pi).t)->second * (*pi).s != 0) // if this
+                // mutation in genome i is not neutral in environment EI
                 {
                   vector<mutation>::iterator temp_j = pj;
                   bool homo = 0;
@@ -975,16 +981,16 @@ public:
                       // DONE: Stuck to the practice of not storing mutation identifiers, but
                         // now identity must be defined based on properties (mutation type and
                         // selection coefficient) in the *reference environment*.
-                      if ((*pi).t == (*temp_j).t && env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s == env.find(ei)->second.smodif.find((*temp_j).t)->second * (*temp_j).s) // if currently
+                      if ((*pi).t == (*temp_j).t && E.smodif.find((*pi).t)->second * (*pi).s == E.smodif.find((*temp_j).t)->second * (*temp_j).s) // if currently
                         // visited mutations in genomes i and j are biologically the same
-                        // (identical by state in environment ei)
+                        // (identical by state in environment EI)
                         {
                           // distinguish between two fitness regimes (additive vs.
                             // multiplicative)
                           if (fi == 'a')
                             {
                               // DONE: Changed to environment-specific fitnesses
-                              w = w + env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s;
+                              w = w + E.smodif.find((*pi).t)->second * (*pi).s;
                               /* OLD:
                               w = w + (*pi).s;
                               */
@@ -992,7 +998,7 @@ public:
                             } // fitness interaction is not additive
                           else if (fi == 'm')
                             {
-                              w = w * (1.0 + env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s);
+                              w = w * (1.0 + E.smodif.find((*pi).t)->second * (*pi).s);
                               /* OLD:
                               w = w * (1.0 + (*pi).s);
                               */
@@ -1020,7 +1026,7 @@ public:
                       if (fi == 'a')
                         {
                           // DONE: Changed to environment-specific fitnesses
-                          w = w + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s;
+                          w = w + E.h.find((*pi).t)->second * E.smodif.find((*pi).t)->second * (*pi).s;
                           /* OLD:
                           w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s;
                           */
@@ -1028,7 +1034,7 @@ public:
                       else if (fi == 'm')
                         {
                           // DONE: Changed to environment-specific fitnesses
-                          w = w * (1.0 + env.find(ei)->second.h.find((*pi).t)->second * env.find(ei)->second.smodif.find((*pi).t)->second * (*pi).s);
+                          w = w * (1.0 + E.h.find((*pi).t)->second * E.smodif.find((*pi).t)->second * (*pi).s);
                           /* OLD:
                           w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
                           */
@@ -1051,7 +1057,7 @@ public:
               // situation where (*pj).x == (*pi).x holds.
             {
               // neutrality is assessed w.r.t. the environment assigned to this subpopulation
-              if (env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s != 0.0) // if this mutation in genome j is not neutral in environment ei
+              if (E.smodif.find((*pj).t)->second * (*pj).s != 0.0) // if this mutation in genome j is not neutral in environment EI
                 {
                   vector<mutation>::iterator temp_i = pi_start; // recall that pi_start was
                     // assigned pi above, i.e. pi_start = pi, but in the meantime, pi has been
@@ -1063,8 +1069,8 @@ public:
                     {
                       // recall that homozygosity is defined as identity by state in the
                         // environment assigned to this subpopulation
-                      if ((*pj).t == (*temp_i).t && env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s == env.find(ei)->second.smodif.find((*temp_i).t)->second * (*temp_i).s) // if currently visited mutations in genomes i and j are
-                        // biologically the same (identical by state) in environment ei
+                      if ((*pj).t == (*temp_i).t && E.smodif.find((*pj).t)->second * (*pj).s == E.smodif.find((*temp_i).t)->second * (*temp_i).s) // if currently visited mutations in genomes i and j are
+                        // biologically the same (identical by state) in environment EI
                         {
                           // this genotype was encountered before and its contribution to fitness
                           // has been incorporated
@@ -1088,7 +1094,7 @@ public:
                       if (fi == 'a')
                         {
                           // DONE: Changed to environment-specific fitnesses
-                          w = w + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s;
+                          w = w + E.h.find((*pj).t)->second * E.smodif.find((*pj).t)->second * (*pj).s;
                           /* OLD:
                           w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s;
                           */
@@ -1096,7 +1102,7 @@ public:
                       else if (fi == 'm')
                         {
                           // DONE: Changed to environment-specific fitnesses
-                          w = w * (1.0 + env.find(ei)->second.h.find((*pj).t)->second * env.find(ei)->second.smodif.find((*pj).t)->second * (*pj).s);
+                          w = w * (1.0 + E.h.find((*pj).t)->second * E.smodif.find((*pj).t)->second * (*pj).s);
                           /* OLD:
                           w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
                           */
@@ -1382,7 +1388,7 @@ public:
   }
 }; // end of class subpopulation
 
-// TODO: GO ON HERE. Tidy up and understand details.
+// TODO: GO ON HERE (4). Tidy up and understand details.
 class population : public map<int, subpopulation>
 {
   // the population is a map of subpopulations
@@ -1395,9 +1401,10 @@ public:
 
   vector<string> parameters;
 
-  void add_subpopulation(int i, unsigned int N)
+  void add_subpopulation(int i, unsigned int N, const environment& env)
   {
-    // add new empty subpopulation i of size N (i is the key of the subpopulation)
+    // add new empty subpopulation i of size N (i is the key of the subpopulation) and assign
+      // environment env to it (by default, the reference environment should be assigned)
 
     if (count(i) != 0) // counts number of occurrences of subpopulation with key equal to i
       {
@@ -1410,13 +1417,14 @@ public:
         exit(1);
       }
 
-    insert(pair<int, subpopulation>(i, subpopulation(N)));
+    insert(pair<int, subpopulation>(i, subpopulation(N, env)));
 
   } // end of add_subpopulation() method
 
-  void add_subpopulation(int i, int j, unsigned int N) 
+  void add_subpopulation(int i, int j, unsigned int N, const environment& env)
   { 
-    // add new subpopulation i of size N individuals drawn from source subpopulation j
+    // add new subpopulation i of size N individuals drawn from source subpopulation j and assign
+      // environment env to it (by default, the reference environment should be assigned)
 
     if (count(i) != 0)
       {
@@ -1433,17 +1441,18 @@ public:
         cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl;
         exit(1);
       }
-    // TODO: GO ON HERE after looking into constructor of subpopulation and class subpopulation.
-    insert(pair<int,subpopulation>(i,subpopulation(N))); 
 
-    for (int p=0; p<find(i)->second.N; p++)
+    insert(pair<int,subpopulation>(i,subpopulation(N, env)));
+
+    for (int p = 0; p < find(i)->second.N; p++)
       {
-	// draw individual from subpopulation j and assign to be a parent in i  
+        // draw individual from subpopulation j and assign to be a parent in i
 
-	int m = find(j)->second.draw_individual();
+        int m = find(j)->second.draw_individual(); // returns an id of an individual in
+          // subpopulation j at random
 	
-	find(i)->second.G_parent[2*p] = find(j)->second.G_parent[2*m];
-	find(i)->second.G_parent[2*p+1] = find(j)->second.G_parent[2*m+1];
+        find(i)->second.G_parent[2*p] = find(j)->second.G_parent[2*m];
+        find(i)->second.G_parent[2*p+1] = find(j)->second.G_parent[2*m+1];
       }
   } // end of add_subpopulation() [alt] method
 
@@ -1452,46 +1461,83 @@ public:
   {
     // set size of subpopulation i to N
 
-    if (count(i)==0) { cerr << "ERROR (change size): no subpopulation p"<< i << endl; exit(1); }
-
-    if (N==0) // remove subpopulation i 
+    if (count(i) == 0)
       {
-	erase(i); 
-	for (it = begin(); it != end(); it++) { it->second.m.erase(i); } 
+        cerr << "ERROR (change size): no subpopulation p"<< i << endl;
+        exit(1);
       }
-    else { find(i)->second.N = N; find(i)->second.G_child.resize(2*N); }
-  }
+
+    if (N == 0) // remove subpopulation i
+      {
+        erase(i);
+
+        // visit all subpopulations and erase the migration rate from the removed subpopulation i
+          // to the current subpopulation
+        for (it = begin(); it != end(); it++)
+          { it->second.m.erase(i); }
+      }
+    else
+      {
+        find(i)->second.N = N;
+        find(i)->second.G_child.resize(2*N);
+      }
+  } // end of method set_size()
 
   void set_selfing(int i, double s) 
   { 
     // set fraction s of i that reproduces by selfing
  
-    if (count(i)==0)    { cerr << "ERROR (set selfing): no subpopulation p"<< i << endl; exit(1); }
-    if (s<0.0 || s>1.0) { cerr << "ERROR (set selfing): selfing fraction has to be within [0,1]" << endl; exit(1); }
-
-    find(i)->second.S = s; 
-  }
+    if (count(i) == 0)
+      {
+        cerr << "ERROR (set selfing): no subpopulation p"<< i << endl;
+        exit(1);
+      }
+    if (s < 0.0 || s > 1.0)
+      {
+        cerr << "ERROR (set selfing): selfing fraction has to be within [0,1]" << endl;
+        exit(1);
+      }
+    find(i)->second.S = s;
+  } // end of method set_selfing()
 
 
   void set_migration(int i, int j, double m) 
   { 
     // set fraction m of i that originates as migrants from j per generation  
 
-    if (count(i)==0)    { cerr << "ERROR (set migration): no subpopulation p"<< i << endl; exit(1); }
-    if (count(j)==0)    { cerr << "ERROR (set migration): no subpopulation p"<< j << endl; exit(1); }
-    if (m<0.0 || m>1.0) { cerr << "ERROR (set migration): migration fraction has to be within [0,1]" << endl; exit(1); }
+    if (count(i) == 0)
+      {
+        cerr << "ERROR (set migration): no subpopulation p"<< i << endl;
+        exit(1);
+      }
+    if (count(j) == 0)
+      {
+        cerr << "ERROR (set migration): no subpopulation p"<< j << endl;
+        exit(1);
+      }
+    if (m < 0.0 || m > 1.0)
+      {
+        cerr << "ERROR (set migration): migration fraction has to be within [0,1]" << endl;
+        exit(1);
+      }
 
-    if (find(i)->second.m.count(j) !=0) { find(i)->second.m.erase(j); }
+    // erase previously existing entries for migration fraction from j to i
+    if (find(i)->second.m.count(j) != 0) // m is a map
+      {
+        find(i)->second.m.erase(j);
+      }
 
-    find(i)->second.m.insert(pair<int,double>(j,m)); 
-  }
+      find(i)->second.m.insert(pair<int,double>(j, m));
+  } // end of method set_migration()
 
 
+  // TODO: GO ON HERE (5) checking and understanding.
   /*
    Executes event E in generation g for chromosome chr. The vector FM stores the id's of mutation
-   types to be tracked.
+   types to be tracked. The reference environment renv and the map of user-specified environments
+   env are taken as further arguments.
    */
-  void execute_event(event& E, int g, chromosome& chr, vector<int>& FM)
+  void execute_event(event& E, int g, chromosome& chr, vector<int>& FM, const environment& renv, map<int, environment>& envs)
   {
     char type = E.t;
 
@@ -1505,7 +1551,7 @@ public:
 
             int i = atoi(sub.c_str()); // subpopulation identifier
             int n = (int)atof(E.s[1].c_str()); // initial size of new subpopulation
-            add_subpopulation(i, n);
+            add_subpopulation(i, n, renv);
           } // end of if empty subpopulation
 	      
         if (E.np == 3) // drawn from source population
@@ -1516,7 +1562,10 @@ public:
             int i = atoi(sub1.c_str());
             int j = atoi(sub2.c_str());
             int n = (int)atof(E.s[1].c_str());
-            add_subpopulation(i,j,n);
+            add_subpopulation(i, j, n, renv); // note that the reference environment is assigned
+              // to the new subpopulation even though founder individuals are drawn from
+              // subpopulation j, which may have been assigned an environment other than the
+              // reference environment
           } // end of if draw from source population
       } // end of if add subpopultion
 	  
@@ -1670,7 +1719,7 @@ public:
     // erase(iterator first, iterator last): removes the range
           // [first, last) of elements
     // remove *consecutive* duplicate mutations
-    // TODO: GO ON HERE, understanding what is done.
+    // TODO: GO ON HERE (3), understanding what is done.
 	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end()); // operator ==: same position, same
       // mutation type, and same selection coefficient (defined for comparison of mutation objects)
 	(*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
@@ -1957,7 +2006,7 @@ public:
     for (it = begin(); it != end(); it++) // iterating over subpopulations
       { 
         it->second.swap();
-        it->second.update_fitness(chr, fi, env);
+        it->second.update_fitness(chr, fi);
       } // end of iterating over subpopulations
   } // end of method swap_generations()
 
@@ -3167,7 +3216,7 @@ void check_input_file(char* file)
 } // end of method check_input_file()
 
 
-void initialize_from_file(population& P, const char* file, chromosome& chr, char& fi, map<int,environment>& env)
+void initialize_from_file(population& P, const char* file, chromosome& chr, char& fi, const environment& renv)
 {
   // initialize population from file
 
@@ -3199,7 +3248,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
       int i = atoi(sub.c_str()); // subpopulation identifier
       iss >> sub;
       int n = atoi(sub.c_str()); // subpopulation size
-      P.add_subpopulation(i, n);
+      P.add_subpopulation(i, n, renv); // assigning reference environment renv by default
       get_line(infile, line);      
     } // subpopulations read, mutations section reached
 
@@ -3246,7 +3295,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
 
   for (P.it = P.begin(); P.it != P.end(); P.it++)
     {
-      P.it->second.update_fitness(chr, fi, env);
+      P.it->second.update_fitness(chr, fi);
     }
 } // end of initialize_from_file()
 
@@ -3254,9 +3303,9 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
   Initialises the population P using parameter values to be read from file. Initialises chromosome
   chr, as well as demography and structure events E, output events O, user-defined mutations  IM
   that will be introduced, and mutations PS undergoing partial sweeps. Moreover, fi denotes the
-  fitness interaction, and ev the vector of environments
+  fitness interaction, env the vector of environments, and renv the reference environment
 */
-void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, map<int,environment>& env, vector<string>& parameters)
+void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, multimap<int,event>& E, multimap<int,event>& O, multimap<int,introduced_mutation>& IM, vector<partial_sweep>& PS, map<int,environment>& env, environment& renv, vector<string>& parameters)
 {
   string line; 
   string sub; 
@@ -3695,7 +3744,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
                       parameters.push_back(line);
                       istringstream iss(line);
                       iss >> sub;
-                      initialize_from_file(P, sub.c_str(), chr, fi, env);
+                      initialize_from_file(P, sub.c_str(), chr, fi, renv);
                     } // end of if line is not empty
                   get_line(infile, line);
                 } // end of while not hitting next section or end of file
@@ -3705,7 +3754,7 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
         {
           get_line(infile, line);
           cout << "getting new line:" << endl; // test
-          // TODO: GO ON HERE, testing error (endless loop)
+          // TODO: GO ON HERE (1), testing error (endless loop)
           cout << line << endl;
         }
     // TODO: Introduce a check for the presence of lines that start with # and have not been
@@ -3724,12 +3773,16 @@ void initialize(population& P, char* file, chromosome& chr, int& T, char& fi, mu
   gsl_rng_set(rng, (long)seed);
 
   parameters.push_back("#SEED");
-  stringstream ss; ss << seed;
+  stringstream ss;
+  ss << seed;
   parameters.push_back(ss.str());
 
   // parameter output
 
-  for (int i=0; i<P.parameters.size(); i++) { cout << parameters[i] << endl; }
+  for (int i = 0; i < P.parameters.size(); i++)
+    {
+      cout << parameters[i] << endl;
+    }
 } // end of method initialize()
 
 
@@ -3796,8 +3849,8 @@ int main(int argc,char *argv[])
 
   vector<partial_sweep> PS;
 
-  // GO ON HERE: understand, and extend.
-  initialize(P, input_file, chr, T, FI, E, O, IM, PS, EV, P.parameters);
+  // GO ON HERE (2): understand, and extend.
+  initialize(P, input_file, chr, T, FI, E, O, IM, PS, EV, REV, P.parameters);
  
   // evolve over t generations
 
@@ -3809,7 +3862,7 @@ int main(int argc,char *argv[])
 
       for (itE = rangeE.first; itE != rangeE.second; itE++)
         {
-          P.execute_event(itE->second, g, chr, TM);
+          P.execute_event(itE->second, g, chr, TM, REV, EV);
         }
    
       // evolve all subpopulations
@@ -3832,7 +3885,7 @@ int main(int argc,char *argv[])
       // execute output events
 
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeO = O.equal_range(g);
-      for (itO = rangeO.first; itO != rangeO.second; itO++) { P.execute_event(itO->second, g, chr, TM); }
+      for (itO = rangeO.first; itO != rangeO.second; itO++) { P.execute_event(itO->second, g, chr, TM, REV, EV); }
 
       // track particular mutation-types and set s=0 for partial sweeps when completed
       
