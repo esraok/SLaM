@@ -1850,7 +1850,7 @@ public:
                     if (it->second.G_child[i][k].t == TM[j]) // if current mutation-type is equal
                       // to mutation-type of currently visited mutation
                       {
-                        add_mut(P, it->second.G_child[i][k], it->second);
+                        add_mut(P, it->second.G_child[i][k], it->first);
                       }
                   } // end of iterate over tracked mutation-types
               } // end of iterate over all mutations
@@ -1901,7 +1901,7 @@ public:
                           // mutations
                         if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t)
                           {
-                            add_mut(P, it->second.G_child[i][k], it.second);
+                            add_mut(P, it->second.G_child[i][k], it.first);
                           }
                       } // end of iterate over all partial sweeps
                   } // end of iterate over all mutations
@@ -2192,7 +2192,6 @@ public:
     multimap<int,polymorphism>::iterator P_it;
 
     // add all polymorphisms
-    // TODO: GO ON HERE (6) extending this to account for subpopulation-specific prevalences
     for (it = begin(); it != end(); it++) // iterate over all subpopulations
       {
         for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
@@ -2201,9 +2200,9 @@ public:
               // note that mutations in a genome (here, G_child[i]) are ordered by the key
               // identical to their physical position
               {
-                add_mut(P, it->second.G_child[i][k], it->second); // add mutation k to P or
-                  // increase its prevalence if already contained in P; prevalence updates must be
-                  // made specifically to the subpopulation
+                add_mut(P, it->second.G_child[i][k], it->first); // add mutation k to P or
+                  // increase its prevalence if already contained in P; prevalence are made
+                  // specifically to the subpopulation
               } // end of iterate over all mutations
           } // end of iterate over all children
       } // end of iterate over all subpopulations
@@ -2221,21 +2220,23 @@ public:
     cout << "Genomes:" << endl;
 
     // print all genomes
-
-    for (it = begin(); it != end(); it++) // go through all subpopulations
+    // TODO: GO ON HERE (6) extending this to account for subpopulation-specific prevalences
+    for (it = begin(); it != end(); it++) // iterate over all subpopulations
       {
-	for (int i=0; i<2*it->second.N; i++) // go through all children
-	  {
-	    cout << "p" << it->first << ":" << i+1;
-
-	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
-	      {
-		int id = find_mut(P,it->second.G_child[i][k]);
-		cout << " " << id; 
-	      }
-	    cout << endl;
-	  }
-      }
+        for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
+          {
+            cout << "p" << it->first << ":" << i+1;
+            // print rest of line
+            for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate over all mutations
+              {
+                // returns id of mutation found in P; if no mutation is found in P, that mutation
+                  // is added to P as a polymorphism and the id returned
+                int id = find_mut(P, it->second.G_child[i][k]);
+                cout << " " << id;
+              }
+            cout << endl;
+          } // end of iterate over children
+      } // end of iterate over subpopulations
 
   } // end of method print_all() 1
 
@@ -2258,7 +2259,7 @@ public:
 	  {
 	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 	      {
-		add_mut(P, it->second.G_child[i][k], it.second);
+		add_mut(P, it->second.G_child[i][k], it.first);
 	      }
 	  }
       }
@@ -2305,9 +2306,9 @@ public:
 	int j = gsl_rng_uniform_int(rng,find(i)->second.G_child.size());
 	sample.push_back(j);
 
-	for (int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
+	for (int k = 0; k < find(i)->second.G_child[j].size(); k++) // go through all mutations
 	  {
-	    add_mut(P, find(i)->second.G_child[j][k], find(i)->second);
+	    add_mut(P, find(i)->second.G_child[j][k], find(i)->first);
 	  }
       }
 
@@ -2330,7 +2331,7 @@ public:
 	  }
 	cout << endl;
       }
-  }
+  } // end of method print_sample()
 
 
   void print_sample_ms(int i, int n, chromosome& chr)
@@ -2351,7 +2352,7 @@ public:
 
 	for (int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
 	  {
-	    add_mut(P, find(i)->second.G_child[j][k], find(i)->second);
+	    add_mut(P, find(i)->second.G_child[j][k], find(i)->first);
 	  }
       }
 
@@ -2396,7 +2397,7 @@ public:
       }
   }
 
-
+  // TODO: GO ON HERE (7) extending this function to deal with subpopulation-specific prevalences.
   int find_mut(multimap<int,polymorphism>& P, mutation m)
   {
     // find m in P and return its id
@@ -2408,60 +2409,77 @@ public:
     multimap<int,polymorphism>::iterator it;
     pair<multimap<int,polymorphism>::iterator,multimap<int,polymorphism>::iterator> range = P.equal_range(m.x);
     it = range.first;
-
+    // advance through polymorphisms
     while (it != range.second)
       {
-	if (it->second.t == m.t && it->second.s == m.s) 
-	  { 
-	    id = it->second.i;
-	    it->second.n++;
-	    it = range.second;
-	  }
-	else{ it++; }
+        // GO ON HERE (8)
+        if (it->second.t == m.t && it->second.s == m.s)
+          {
+            id = it->second.i;
+            it->second.n++;
+            it = range.second;
+          }
+        else
+          { it++; }
       }
     
     return id;
   }
 
-  // TODO: GO ON HERE (7) extending this function to deal with subpopulation-specific prevalences.
-    // Do this also for find_mut() above.
-  void add_mut(multimap<int,polymorphism>& P, mutation m, const population& pop)
+
+  void add_mut(multimap<int,polymorphism>& P, mutation m, int spid)
   {
     // if mutation is present in P (i.e. in the entire population) increase prevalence in the
-    // appropriate subpopulation pop, otherwise add it to P for the appropriate subpopulation pop
+      // appropriate subpopulation pop, otherwise add it to P for the subpopulation with key spid
 
     int id = 0; // the value assigned to no existing mutation; ids start at 1
 
-    // iterate through all mutations with same position
+    // iterate over all mutations with same position
 
     multimap<int,polymorphism>::iterator it;
-    pair<multimap<int,polymorphism>::iterator,multimap<int,polymorphism>::iterator> range = P.equal_range(m.x); // establish the range of mutations in P with the same physical position x;
-      // the implementation below makes sure that mutations are added to P using their position x
-      // as the key, by which they are ordered in the multimap
-    it = range.first; // initialise iterator to first instance of mutation
+    pair<multimap<int,polymorphism>::iterator,multimap<int,polymorphism>::iterator> range = P.equal_range(m.x); // establish the range of polymorphisms in P with the same physical
+        // position x;
+    it = range.first; // initialise iterator to first mutation at position x
 
-    // iterate over mutations at the same physical position
+    // iterate over mutations (polymorphisms) at the same physical position
     while (it != range.second)
       {
         // if mutation m is identical in state (i.e. type and selection coefficient in the
-          // reference environment) with the currently visited mutation
+          // reference environment) with the currently visited polymorphism
         if (it->second.t == m.t && it->second.s == m.s)
           {
             id = it->second.i; // obtain id of mutation already present at x
-            it->second.n++; // increase counter
+            // OLD
+            // it->second.n++; // increase counter for subpopulation with key spid
+            // NEW
+            // if key spid exists, increase corresponding counter, otherwise insert that counter
+            map<int,int>::iterator count_it;
+            count_it = it->second.n.find(spid);
+
+            if (count_it == second.n.end()) // counter does not yet exist
+              {
+                // insert counter
+                it->second.n.insert(pair<int,int>(spid,1));
+              }
+            else // counter exists
+              {
+                // update counter for subpopulation with id spid
+                count_it->second++;
+              }
+
             it = range.second; // set iterator equal to end of last mutation at x
           }
-        else
-          { it++; }
-      } // end of iterate over mutations at the same physical position
+        else // mutation m is not identical in state with currently visited polymorphism
+          { it++; } // advance to next polymorphism
+      } // end of iterate over polymorphism at the same physical position
 
-    // if not already present, add mutation to P
+    // if not already present in any subpopulation, add polymorphism to P
 
     if (id == 0)
       {
-        id = P.size()+1;
-        P.insert(pair<int,polymorphism>(m.x, polymorphism(id, m.t, m.s, 1))); // the last argument
-          // to the constructor of polymorphism is the prevalence, here n = 1
+        id = P.size() + 1;
+        P.insert(pair<int,polymorphism>(m.x, polymorphism(id, m.t, m.s, pair<int,int>(spid,1)))); // the last argument to the constructor of polymorphism is the map of prevalences;
+          // here, we initalise the polymorphism with just one count in subpopulation spid
       }
   } // end of add_mut() method
 

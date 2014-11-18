@@ -14,8 +14,8 @@
 11/17/2014
 ==========
 
-- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism::print() [DONE], then polymorphism::print_noi() [DONE]. Then work on population::print_all() [two versions], population::print_sample() [two versions], population::print_sample_ms(), population::add_mut(), population::track_mutations(), population::find_mut()
+- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism::print() [DONE], then polymorphism::print_noi() [DONE]. Then work on population::print_all() [two versions], population::print_sample() [two versions], population::print_sample_ms(), population::add_mut() [DONE], population::track_mutations()[DONE], population::find_mut() [called by population::print_all() and population::pring_sample(), PENDING]
 - REMARK: The method polymorphism::print_noi() is used to print subpopulation-specific prevalences, yet in its current implementation, it gives dominance and selection coefficients valid for the reference environment, not for the respective subpopulation. This could be changed later, if needed.
 - Adjusting population::track_mutations() to account for changes in class polymorphism [DONE]
 - Improved formating of population::remove_fixed(), polymorphic(), and fixed() [DONE]. REMARK: I have not fully checked these methods, but merely focussed on improving the formatting (indentation)
-- Proceed on l. 2180
+- Proceed on l. 2194
