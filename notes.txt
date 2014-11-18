@@ -15,4 +15,5 @@
 ==========
 
 - Finished pending TODO from 11/17/2014
-- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism.print(). Then work on population.print_all() [two], population.print_sample() [2], population.print_sample_ms(), population.add_mut(), population.track_mutations(), 
+- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism.print(), then polymorphism.print_noi(). Then work on population.print_all() [two], population.print_sample() [2], population.print_sample_ms(), population.add_mut(), population.track_mutations()
+- changed polymorphism.print() and ditto.print_noi(). Before proceeding with further methods mentioned above, finish working through population.track_mutations(), starting from l. 1853

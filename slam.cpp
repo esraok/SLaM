@@ -518,7 +518,7 @@ public:
     // print mutation id (re-assigned every generation), mutation type, physical position,
       // selection coefficient and dominance coefficient in the reference environment, and
       // total prevalence
-    // cout << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n;
+    cout << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n;
 
     // print prevalence in each subpopulation
 
@@ -529,20 +529,57 @@ public:
       } // end of for each subpopulation
     cout << endl;
 
-  }
+  } // end of method print()
 
-  // TODO: GO ON HERE (8) implementing changes as in the previous method (print()).
-  void print(ofstream& outfile, int x, chromosome& chr) 
+  void print(ofstream& outfile, int x, chromosome& chr)
   { 
-    float h = chr.mutation_types.find(t)->second.h;
-    outfile << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl; 
-  }
+    float h = chr.mutation_types.find(t)->second.h; // the dominance coefficient in the reference
+      // environment
 
-  void print_noi(int x, chromosome& chr) 
+    // compute total prevalence (although this could be done while printing subpopulation-specific
+      // prevalences below, for better consistency with the previous output format, the total
+      // prevalence is given first and hence needs to be computed first)
+
+    map<int,int>::iterator nit;
+    int ntot = 0; // total prevalence (i.e. sum across all subpopulations)
+
+      // for each subpopulation
+    for (nit = n.begin(); nit != n.end(); nit++)
+      {
+        ntot = ntot + nit->second;
+      } // end of for each subpopulation
+
+    // outfile << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl;
+    // print mutation id (re-assigned every generation), mutation type, physical position,
+      // selection coefficient and dominance coefficient in the reference environment, and
+      // total prevalence
+    outfile << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n;
+
+    // print prevalence in each subpopulation
+
+    // for each subpopulation
+    for (nit = n.begin(); nit != n.end(); nit++)
+      {
+        cout << " p" << nit->first << " " << nit->second;
+      } // end of for each subpopulation
+    cout << endl;
+
+  } // end of method print()
+
+  void print_noi(int x, chromosome& chr, int spid)
+
+  // x is the physical position, chr a reference to the chromosome, and spid the id of the
+    // subpopulation of which to print the prevalences
   { 
-    float h = chr.mutation_types.find(t)->second.h;
-    cout << "m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl; 
-  }
+    float h = chr.mutation_types.find(t)->second.h; // the dominance coefficient in the reference
+      // environment
+      // OPTION: Change this to subpopulation-specific dominance coefficient?
+      // OPTION: Change from selection coefficient in the reference environment to the one
+        // modified for the respective subpopulation?
+
+    cout << "m" << t << " " << x+1 << " " << s << " " << h << " "<< n.find(spid)->second << endl;
+  } // end of method print_noi()
+
 }; // end of class polymorphism
 
 
@@ -1786,33 +1823,43 @@ public:
 
   void track_mutations(int g, vector<int>& TM, vector<partial_sweep>& PS, chromosome& chr)
   {
-    // output trajectories of followed mutations and set s = 0 for partial sweeps
+    // output trajectories of followed mutations and set s = 0 for partial sweeps when completed
+
+    // g is the generation, TM refers to the vector of ids of tracked mutation-types, PS to the
+      // vector of partial sweeps, and chr to the chromosome
 
     // find all polymorphism of the types that are to be tracked
 
-    for (it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // iterate over all subpopulations
       {
-	multimap<int,polymorphism> P;
-	multimap<int,polymorphism>::iterator P_it;
+        multimap<int,polymorphism> P;
+        multimap<int,polymorphism>::iterator P_it;
 
-	for (int i=0; i<2*it->second.N; i++) // go through all children
-	  {
-	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
-	      {
-		for (int j=0; j<TM.size(); j++)
-		  {
-		    if (it->second.G_child[i][k].t == TM[j]) { add_mut(P, it->second.G_child[i][k], it->second); }
-		  }
-	      }
-	  }
+        for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
+          {
+            for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate over all mutations
+              {
+                for (int j = 0; j < TM.size(); j++) // iterate over tracked mutation-types
+                  {
+                    if (it->second.G_child[i][k].t == TM[j]) // if current mutation-type is equal
+                      // to mutation-type of currently visited mutation
+                      {
+                        add_mut(P, it->second.G_child[i][k], it->second);
+                      }
+                  } // end of iterate over tracked mutation-types
+              } // end of iterate over all mutations
+          } // end of iterate over all children
 
-	// output the frequencies of these mutations in each subpopulation
+        // output the frequencies of these mutations in each subpopulation separately
 
-	for (P_it = P.begin(); P_it != P.end(); P_it++) 
-	  { 
-	    cout << "#OUT: " << g << " T p" << it->first << " "; P_it->second.print_noi(P_it->first,chr); 
-	  }
-      }
+        // GODO: GO ON HERE (8) understanding, reformatting, and adjusting if necessary
+        
+        for (P_it = P.begin(); P_it != P.end(); P_it++) // iterate over polymorphisms
+          {
+            cout << "#OUT: " << g << " T p" << it->first << " ";
+            P_it->second.print_noi(P_it->first, chr, it->first);
+          } // end of iterate over polymorphisms
+      } // end of iterate over all subpopulations
 
     // check partial sweeps
 
@@ -2335,8 +2382,7 @@ public:
   void add_mut(multimap<int,polymorphism>& P, mutation m, const population& pop)
   {
     // if mutation is present in P (i.e. in the entire population) increase prevalence in the
-    // appropriate subpopulation pop, otherwise add it to P for the appropriate subpopulation pop;
-    // note that P is not a population, but a map of polymorphisms
+    // appropriate subpopulation pop, otherwise add it to P for the appropriate subpopulation pop
 
     int id = 0; // the value assigned to no existing mutation; ids start at 1
 
@@ -3953,12 +3999,20 @@ int main(int argc,char *argv[])
 
       // execute output events
 
+      // range of output events happening in generation g
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeO = O.equal_range(g);
-      for (itO = rangeO.first; itO != rangeO.second; itO++) { P.execute_event(itO->second, g, chr, TM, REV, EV); }
 
-      // track particular mutation-types and set s=0 for partial sweeps when completed
+      for (itO = rangeO.first; itO != rangeO.second; itO++)
+        {
+          P.execute_event(itO->second, g, chr, TM, REV, EV);
+        }
+
+      // track particular mutation-types and set s = 0 for partial sweeps when completed
       
-      if (TM.size()>0 || PS.size()>0) { P.track_mutations(g,TM,PS,chr); }
+      if (TM.size() > 0 || PS.size() > 0)
+      {
+        P.track_mutations(g, TM, PS, chr);
+      }
 
       // swap generations
 
