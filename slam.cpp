@@ -495,15 +495,11 @@ public:
     n = N;
   }
 
-  void print(int x, chromosome& chr) 
-  { 
-    float h = chr.mutation_types.find(t)->second.h; // the dominance coefficient in the reference
-      // environment
-
-    // compute total prevalence (although this could be done while printing subpopulation-specific
-      // prevalences below, for better consistency with the previous output format, the total
-      // prevalence is given first and hence needs to be computed first)
-
+  /*
+  Computes total prevalence (i.e. across all subpopulations, in the entire population)
+  */
+  int calc_ntot()
+  {
     map<int,int>::iterator nit;
     int ntot = 0; // total prevalence (i.e. sum across all subpopulations)
 
@@ -513,6 +509,18 @@ public:
         ntot = ntot + nit->second;
       } // end of for each subpopulation
 
+  } // end of method calc_ntot()
+
+  void print(int x, chromosome& chr)
+  { 
+    float h = chr.mutation_types.find(t)->second.h; // the dominance coefficient in the reference
+      // environment
+
+    // compute total prevalence (although this could be done while printing subpopulation-specific
+      // prevalences below, for better consistency with the previous output format, the total
+      // prevalence is given first and hence needs to be computed first)
+
+    int ntot = calc_ntot();
 
     // cout << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl;
     // print mutation id (re-assigned every generation), mutation type, physical position,
@@ -540,14 +548,7 @@ public:
       // prevalences below, for better consistency with the previous output format, the total
       // prevalence is given first and hence needs to be computed first)
 
-    map<int,int>::iterator nit;
-    int ntot = 0; // total prevalence (i.e. sum across all subpopulations)
-
-      // for each subpopulation
-    for (nit = n.begin(); nit != n.end(); nit++)
-      {
-        ntot = ntot + nit->second;
-      } // end of for each subpopulation
+    int ntot = calc_ntot();
 
     // outfile << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl;
     // print mutation id (re-assigned every generation), mutation type, physical position,
@@ -652,7 +653,7 @@ class genome : public vector<mutation>
 }; // end of class genome
 
 
-// top-level function
+// top-level method
 
 genome fixed(genome& G1, genome& G2)
 {
@@ -666,38 +667,38 @@ genome fixed(genome& G1, genome& G2)
   vector<mutation>::iterator g1_max = G1.end();
   vector<mutation>::iterator g2_max = G2.end();
   
+  // advance g1 and g2 while non is at their maximum
   while (g1 != g1_max && g2 != g2_max)
-      {
-	// advance g1 while g1.x < g2.x
+    {
+      // advance g1 while g1.x < g2.x
+      while (g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x)
+        { g1++; }
 
-	while (g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x) { g1++; }
-
-	// advance g2 while g1.x < g2.x
-
-	while (g1 != g1_max && g2 != g2_max && (*g2).x < (*g1).x) { g2++; }
+      // advance g2 while g1.x < g2.x
+      while (g1 != g1_max && g2 != g2_max && (*g2).x < (*g1).x) { g2++; }
 	   
-	// identify shared mutations at positions x and add to G
+      // identify shared mutations at positions x and add to G
+      if (g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
+        {
+          int x = (*g1).x;
+          vector<mutation>::iterator temp;
 
-	if (g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
-	  {
-	    int x = (*g1).x;
-
-	    vector<mutation>::iterator temp;
-
-	    while (g1 != g1_max && (*g1).x == x)
-	      {
-		temp = g2;
-		while (temp != g2_max && (*temp).x == x)
-		  {
-		    if ((*temp).t==(*g1).t && (*temp).s==(*g1).s) { G.push_back(*g1); }
-		    temp++;
-		  }
-		g1++;
-	      }
-	  }
-      }
+          while (g1 != g1_max && (*g1).x == x)
+            {
+              temp = g2;
+              while (temp != g2_max && (*temp).x == x)
+                {
+                  if ((*temp).t == (*g1).t && (*temp).s == (*g1).s)
+                    { G.push_back(*g1); }
+                  temp++;
+                }
+              g1++;
+            }
+        } // end of identify shared mutations at positions x and add to G
+    } // end of advance g1 and g2
 
   return G;
+
 } // end of method fixed()
 
 
@@ -715,47 +716,52 @@ genome polymorphic(genome& G1, genome& G2)
   vector<mutation>::iterator g1_max = G1.end();
   vector<mutation>::iterator g2_max = G2.end();
   
+  // advance g1 and g2 while non is hitting their maximum
   while (g1 != g1_max && g2 != g2_max)
-      {
-	// advance g1 while g1.x < g2.x
+    {
+      // advance g1 while g1.x < g2.x
+      while (g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x)
+        { G.push_back(*g1); g1++; }
 
-	while (g1 != g1_max && g2 != g2_max && (*g1).x < (*g2).x) { G.push_back(*g1); g1++; }
-
-	// advance g2 while g1.x < g2.x
-
-	while (g2 != g2_max && g1 != g1_max && (*g2).x < (*g1).x) { g2++; }
+      // advance g2 while g1.x < g2.x
+      while (g2 != g2_max && g1 != g1_max && (*g2).x < (*g1).x)
+        { g2++; }
 	   
-	// identify polymorphic mutations at positions x and add to G
+      // identify polymorphic mutations at positions x and add to G
+      if (g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
+        {
+          int x = (*g1).x;
 
-	if (g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
-	  {
-	    int x = (*g1).x;
+          // traverse g1 and check for those mutations that are not present in g2
+          vector<mutation>::iterator temp = g2;
 
-	    // go through g1 and check for those mutations that are not present in g2
+          while (g1 != g1_max && (*g1).x == x)
+            {
+              bool poly = 1;
 
-	    vector<mutation>::iterator temp = g2;
+              while (temp != g2_max && (*temp).x == x)
+                {
+                  if ((*g1).t==(*temp).t && (*g1).s==(*temp).s)
+                    { poly = 0; }
+                  temp++;
+                }
+              if (poly == 1)
+                { G.push_back(*g1); }
+              g1++;
+            }
 
-	    while (g1 != g1_max && (*g1).x == x)
-	      {
-		bool poly = 1;
+          while (g2 != g2_max && (*g2).x == x)
+            { g2++; }
+        } // end of identify polymorphic positions x and add to G
+    } // end of advance g1 and g2
 
-		while (temp != g2_max && (*temp).x == x)
-		  {
-		    if ((*g1).t==(*temp).t && (*g1).s==(*temp).s) { poly = 0; }
-		    temp++;
-		  }
-		if (poly == 1) { G.push_back(*g1); }
-		g1++;
-	      }
-
-	    while (g2 != g2_max && (*g2).x == x) { g2++; }
-	  }
-      }
-
-  while (g1 != g1_max) { G.push_back(*g1); g1++; }
+  while (g1 != g1_max)
+    { G.push_back(*g1); g1++; }
 
   return G;
+
 } // end of method polymorphic()
+
 
 class environment
 {
@@ -855,7 +861,7 @@ private:
 
 public:
 
-  int    N; // population size  
+  int    N; // population size (number of diploid individuals)
   double S; // selfing fraction
   environment E; // environment
 
@@ -1604,7 +1610,6 @@ public:
   } // end of method set_migration()
 
 
-  // TODO: GO ON HERE (5) checking and understanding.
   /*
    Executes event E in generation g for chromosome chr. The vector FM stores the id's of mutation
    types to be tracked. The reference environment renv and the map of user-specified environments
@@ -1677,6 +1682,7 @@ public:
         set_migration(i, j, m);
       } // end of set migration rate
 
+    // TODO: GO ON HERE (5) checking and understanding.
     if (type == 'A') // output state of entire population
       {
         if (E.s.size() == 0) // if no filename given (i.e. if printing to screen)
@@ -1852,8 +1858,6 @@ public:
 
         // output the frequencies of these mutations in each subpopulation separately
 
-        // GODO: GO ON HERE (8) understanding, reformatting, and adjusting if necessary
-        
         for (P_it = P.begin(); P_it != P.end(); P_it++) // iterate over polymorphisms
           {
             cout << "#OUT: " << g << " T p" << it->first << " ";
@@ -1863,65 +1867,90 @@ public:
 
     // check partial sweeps
 
-    multimap<int,polymorphism> P;
+    multimap<int,polymorphism> P; // for the entire population (above, P was specific to a given
+      // subpopulation); P will be filled by population::add_mut() such that the key corresponds to
+      // the physical position; note that more than one mutation are allowed at a given position in
+      // general, but no more than one non-neutral mutation other than those identical in state
     multimap<int,polymorphism>::iterator P_it;
 
-    if (PS.size()>0)
+    if (PS.size() > 0) // if there are partial sweeps
       {
-	P.clear();
+        P.clear();
 
-	int N = 0; for (it = begin(); it != end(); it++) { N += it->second.N; }
+        int N = 0;
+        // compute the size of the entire population (summing diploid individuals across all
+          // subpopulations)
+        for (it = begin(); it != end(); it++)
+          { N += it->second.N; }
 
-	// find all polymorphism that are supposed to undergo partial sweeps
+        // find all polymorphism that are supposed to undergo partial sweeps
 
-	for (it = begin(); it != end(); it++) // go through all subpopulations
-	  {
-	    for (int i=0; i<2*it->second.N; i++) // go through all children
-	      {
-		for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
-		  {
-		    for (int j=0; j<PS.size(); j++)
-		      {
-			if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t) 
-			  {
-			    add_mut(P, it->second.G_child[i][k], it.second);
-			  }
-		      }
-		  }
-	      }
-	  }
+        for (it = begin(); it != end(); it++) // iterate over all subpopulations
+          {
+            for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
+              {
+                for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate over all
+                  // mutations; recall that they are ordered by physical position in a genome
+                  {
+                    for (int j = 0; j < PS.size(); j++) // iterate over all partial sweeps
+                      {
+                        // if the currently visited mutation and the current partially sweeping
+                          // are identical in mutation-type and position; to prevent confusion
+                          // with homoplasy via recurrent mutation, the user shoud specify
+                          // exclusive mutation-types for partial sweeps and predetermined
+                          // mutations
+                        if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t)
+                          {
+                            add_mut(P, it->second.G_child[i][k], it.second);
+                          }
+                      } // end of iterate over all partial sweeps
+                  } // end of iterate over all mutations
+              } // end of iterate over all children
+          } // end of interate over all subpopulations
     
-	// check whether a partial sweep has reached its target frequency
+        // check whether a partial sweep has reached its target frequency
 
-	for (P_it = P.begin(); P_it != P.end(); P_it++) 
-	  { 
-	    for (int j=0; j<PS.size(); j++)
-	      {
-		if (P_it->first == PS[j].x && P_it->second.t == PS[j].t)
-		  {
-		    if (((float)P_it->second.n)/(2*N) >= PS[j].p)
-		      {
-			// sweep has reached target frequency, set all s to zero
+        for (P_it = P.begin(); P_it != P.end(); P_it++) // iterate over all polymorphisms
+          {
+            for (int j = 0; j < PS.size(); j++) // iterate over all partial sweeps
+              {
+                // if currently visited polymorphism and current partial sweep are identical in
+                  // terms of physical position and mutation-type
+                if (P_it->first == PS[j].x && P_it->second.t == PS[j].t)
+                  {
+                    // if the global frequency (i.e. in the entire population) of the (partially)
+                      // sweeping mutation has reached the threshold frequency
+                    if (((float)P_it->second.calc_ntot())/(2*N) >= PS[j].p)
+                      {
+
+                        // sweep has reached target frequency, set all s to zero
 			
-			for (it = begin(); it != end(); it++) // go through all subpopulations
-			  {
-			    for (int i=0; i<2*it->second.N; i++) // go through all children
-			      {
-				for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
-				  {
-				    if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t)
-				      {
-					it->second.G_child[i][k].s = 0.0;
-				      }
-				  }
-			      }
-			  }
-			PS.erase(PS.begin()+j); j--;
-		      }
-		  }
-	      }
-	  }
-      }
+                        for (it = begin(); it != end(); it++) // iterate over all subpopulations
+                          {
+                            for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
+                              {
+                                for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate
+                                  // over all mutations
+                                  {
+                                    // if currently visited mutation and current partial sweep
+                                      // are identical in terms of position and mutation-type,
+                                      // set the respective selection coefficient to 0.
+                                    if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t)
+                                      {
+                                        it->second.G_child[i][k].s = 0.0;
+                                      }
+                                  } // end of for each mutation
+                              } // end of for each child
+                          } // end of for each subpopulation
+                        // erase currently visited (and completed) (partial) sweep and decrease
+                          // iterator
+                        PS.erase(PS.begin() + j);
+                        j--;
+                      } // end of if current (partial) sweep has reached its target frequency
+                  } // end of if current polymorphism and current partial sweep are identical
+              } // end of for all partial sweeps
+          } // end of for all polymorphisms
+      } // end of if there are partial sweeps
   } // end of method track_mutations()
 
 
@@ -2106,30 +2135,46 @@ public:
 
   void remove_fixed(int g)
   {
-    // find mutations that are fixed in all child subpopulations and return vector with their ids
+    // find mutations that are fixed in all child subpopulations and update the subsitutions
+      // vector
+    // g is the generation
 
-    genome G = begin()->second.G_child[0];
+    genome G = begin()->second.G_child[0]; // copy the first genome in the first subpopulation
+      // as a reference to which all other genomes across the entire population are compared; this
+      // reference will be updated genome by genome, and accumulate fixed mutations
 
-    for (it = begin(); it != end(); it++) // subpopulations
+    for (it = begin(); it != end(); it++) // iterate over subpopulations
       {
-	for (int i=0; i<2*it->second.N; i++) // child genomes
-	  {
-	    G = fixed(it->second.G_child[i],G);
-	  }
-      }
+        for (int i = 0; i < 2*it->second.N; i++) // iterate over child genomes
+          {
+            // returning a genome consisting only of mutations that are present in both genomes
+              // passed as arguments
+            G = fixed(it->second.G_child[i], G);
+          } // end of for each child genome
+      } // end of for each subpopulation
 
-    if (G.size()>0)
+    // if the cumulative genome made up of mutations fixed across the entire population is not
+      // empty
+    if (G.size() > 0)
       {
-	for (it = begin(); it != end(); it++) // subpopulations
-	  {
-	    for (int i=0; i<2*it->second.N; i++) // child genomes
-	      {
-		it->second.G_child[i] = polymorphic(it->second.G_child[i],G);
-	      }
-	  }
-	for (int i=0; i<G.size(); i++) { Substitutions.push_back(substitution(G[i],g)); } 
-      }
-  }
+        for (it = begin(); it != end(); it++) // iterate over subpopulations
+          {
+            for (int i = 0; i < 2*it->second.N; i++) // iterate over child genomes
+              {
+                // returning a genome consisting only of mutations present in the genome given
+                  // as the first argument, but not in the genome given as the second argument;
+                  // this clears the currently visited child genome of mutations fixed across
+                  // the entire population
+                it->second.G_child[i] = polymorphic(it->second.G_child[i], G);
+              } // end of for each child genome
+          } // end of for each subpopulation
+
+        // add substitution to book keeping; a substitution is a fixed mutation
+        for (int i = 0; i < G.size(); i++)
+          { Substitutions.push_back(substitution(G[i], g)); }
+
+      } // end of if genome G is not empty
+  } // end of method remove_fixed()
 
 
   void print_all(chromosome& chr)
@@ -2378,7 +2423,8 @@ public:
     return id;
   }
 
-  // TODO: GO ON HERE (7) extending this function to deal with subpopulation-specific prevalences
+  // TODO: GO ON HERE (7) extending this function to deal with subpopulation-specific prevalences.
+    // Do this also for find_mut() above.
   void add_mut(multimap<int,polymorphism>& P, mutation m, const population& pop)
   {
     // if mutation is present in P (i.e. in the entire population) increase prevalence in the

@@ -9,11 +9,13 @@
 11/15/2014
 ==========
 
-- Started change from passing a reference to the map of environments to W() and update_fitness(), to passing only the reference to the correct single environment. TODO: Go on with this; add const where environment references are passed, because environments must not be changed. [DONE]
+- Started change from passing a reference to the map of environments to subpopulation::W() and subpopulation::update_fitness(), to passing only the reference to the correct single environment. TODO: Go on with this; add const where environment references are passed, because environments must not be changed. [DONE]
 
 11/17/2014
 ==========
 
-- Finished pending TODO from 11/17/2014
-- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism.print(), then polymorphism.print_noi(). Then work on population.print_all() [two], population.print_sample() [2], population.print_sample_ms(), population.add_mut(), population.track_mutations()
-- changed polymorphism.print() and ditto.print_noi(). Before proceeding with further methods mentioned above, finish working through population.track_mutations(), starting from l. 1853
+- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism::print() [DONE], then polymorphism::print_noi() [DONE]. Then work on population::print_all() [two versions], population::print_sample() [two versions], population::print_sample_ms(), population::add_mut(), population::track_mutations(), population::find_mut()
+- REMARK: The method polymorphism::print_noi() is used to print subpopulation-specific prevalences, yet in its current implementation, it gives dominance and selection coefficients valid for the reference environment, not for the respective subpopulation. This could be changed later, if needed.
+- Adjusting population::track_mutations() to account for changes in class polymorphism [DONE]
+- Improved formating of population::remove_fixed(), polymorphic(), and fixed() [DONE]. REMARK: I have not fully checked these methods, but merely focussed on improving the formatting (indentation)
+- Proceed on l. 2180
