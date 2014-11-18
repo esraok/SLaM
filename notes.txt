@@ -9,4 +9,10 @@
 11/15/2014
 ==========
 
-- Started change from passing a reference to the map of environments to W() and update_fitness(), to passing only the reference to the correct single environment. TODO: Go on with this; add const where environment references are passed, because environments must not be changed.
+- Started change from passing a reference to the map of environments to W() and update_fitness(), to passing only the reference to the correct single environment. TODO: Go on with this; add const where environment references are passed, because environments must not be changed. [DONE]
+
+11/17/2014
+==========
+
+- Finished pending TODO from 11/17/2014
+- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism.print(). Then work on population.print_all() [two], population.print_sample() [2], population.print_sample_ms(), population.add_mut(), population.track_mutations(), 

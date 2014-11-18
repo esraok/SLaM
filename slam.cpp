@@ -479,10 +479,15 @@ public:
 
   int   i; // mutation id
   int   t; // mutation type
-  float s; // selection coefficient
-  int   n; // prevalence
+  float s; // selection coefficient in the reference environment
+  // int   n; // prevalence in the entire population (i.e. summing over all subpopulations existing
+    // at the time of sampling)
 
-  polymorphism(int I, int T, float S, int N)
+  map<int,int> n; // map of prevalences in each subpopulation; the key is the subpopulation
+    // identifier
+
+  // polymorphism(int I, int T, float S, int N)
+  polymorphism(int I, int T, float S, map<int,int> N)
   {
     i = I;
     t = T;
@@ -492,10 +497,41 @@ public:
 
   void print(int x, chromosome& chr) 
   { 
-    float h = chr.mutation_types.find(t)->second.h;
-    cout << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl; 
+    float h = chr.mutation_types.find(t)->second.h; // the dominance coefficient in the reference
+      // environment
+
+    // compute total prevalence (although this could be done while printing subpopulation-specific
+      // prevalences below, for better consistency with the previous output format, the total
+      // prevalence is given first and hence needs to be computed first)
+
+    map<int,int>::iterator nit;
+    int ntot = 0; // total prevalence (i.e. sum across all subpopulations)
+
+    // for each subpopulation
+    for (nit = n.begin(); nit != n.end(); nit++)
+      {
+        ntot = ntot + nit->second;
+      } // end of for each subpopulation
+
+
+    // cout << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n << endl;
+    // print mutation id (re-assigned every generation), mutation type, physical position,
+      // selection coefficient and dominance coefficient in the reference environment, and
+      // total prevalence
+    // cout << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n;
+
+    // print prevalence in each subpopulation
+
+    // for each subpopulation
+    for (nit = n.begin(); nit != n.end(); nit++)
+      {
+        cout << " p" << nit->first << " " << nit->second;
+      } // end of for each subpopulation
+    cout << endl;
+
   }
 
+  // TODO: GO ON HERE (8) implementing changes as in the previous method (print()).
   void print(ofstream& outfile, int x, chromosome& chr) 
   { 
     float h = chr.mutation_types.find(t)->second.h;
@@ -1546,7 +1582,7 @@ public:
         if (E.np == 2) // empty subpopulation (i.e. not drawing from another existing
           // subpopulation); np is the number of event-specific parameters
           {
-            string sub = E.s[0];
+            string sub = E.s[0]; // recall: s of class event is a vector of strings
             sub.erase(0, 1); // erasing leading "p" for subpopulation
 
             int i = atoi(sub.c_str()); // subpopulation identifier
@@ -1571,57 +1607,67 @@ public:
 	  
     if (type == 'N') // set subpopulation size
       { 
-	string sub = E.s[0]; sub.erase(0, 1);
+        string sub = E.s[0];
+        sub.erase(0, 1); // erasing leading "p" for subpopulation
 
-	int i = atoi(sub.c_str());
-	int n = (int)atof(E.s[1].c_str());
+        int i = atoi(sub.c_str());
+        int n = (int)atof(E.s[1].c_str());
 
-	set_size(i,n);
-      }
+        set_size(i, n);
+      } // end of set subpopulation size
 
     if (type == 'S') // set selfing rate
       { 
-	string sub = E.s[0]; sub.erase(0, 1);
+        string sub = E.s[0];
+        sub.erase(0, 1); // erasing leading "p" for subpopulation
 
-	int i    = atoi(sub.c_str());
-	double s = atof(E.s[1].c_str());
+        int i    = atoi(sub.c_str());
+        double s = atof(E.s[1].c_str());
 
-	set_selfing(i,s);
-      }
+        set_selfing(i,s);
+      } // end of set selfing rate
 	  
     if (type == 'M') // change migration rate
       {
-	string sub1 = E.s[0]; sub1.erase(0,1);
-	string sub2 = E.s[1]; sub2.erase(0,1);
+        string sub1 = E.s[0]; sub1.erase(0,1);
+        string sub2 = E.s[1]; sub2.erase(0,1);
 
-	int    i = atoi(sub1.c_str());
-	int    j = atoi(sub2.c_str());
-	double m = atof(E.s[2].c_str());
+        int    i = atoi(sub1.c_str());
+        int    j = atoi(sub2.c_str());
+        double m = atof(E.s[2].c_str()); // the proportion of subpopulation i made up by
+          // individuals from subpopulation j every generation (m_ij)
 
-	set_migration(i,j,m); 
-      }
+        set_migration(i, j, m);
+      } // end of set migration rate
 
     if (type == 'A') // output state of entire population
       {
-	if (E.s.size() == 0)
-	  {
-	    cout << "#OUT: " << g << " A" << endl;
-	    print_all(chr); 
-	  }	
-	if (E.s.size() == 1)
-	  {
-	    ofstream outfile;
-	    outfile.open (E.s[0].c_str());
+        if (E.s.size() == 0) // if no filename given (i.e. if printing to screen)
+          {
+            cout << "#OUT: " << g << " A" << endl;
+            print_all(chr);
+          } // end of if printing to screen
+        if (E.s.size() == 1) // if filename given (i.e. if writing to file)
+          {
+            ofstream outfile;
+            outfile.open (E.s[0].c_str()); // open outstream to specified output file
 
-	    for (int i=0; i<parameters.size(); i++) { outfile << parameters[i] << endl; }
+            // start by printing all parameter settings
+            for (int i = 0; i<parameters.size(); i++)
+              { outfile << parameters[i] << endl; }
 
-	    if (outfile.is_open()) 
-	      { 
-		outfile << "#OUT: " << g << " A " << E.s[0].c_str() << endl;
-		print_all(outfile,chr);
-		outfile.close(); 
-	      }
-	    else { cerr << "ERROR (output): could not open "<< E.s[0].c_str() << endl; exit(1); }
+            // if outstream is open, write polymorphsims and close outstream
+            if (outfile.is_open())
+              {
+                outfile << "#OUT: " << g << " A " << E.s[0].c_str() << endl;
+                print_all(outfile, chr);
+                outfile.close();
+              }
+            else // outstream not open
+              {
+                cerr << "ERROR (output): could not open "<< E.s[0].c_str() << endl;
+                exit(1);
+              }
 	  }
       }
 
@@ -1740,7 +1786,7 @@ public:
 
   void track_mutations(int g, vector<int>& TM, vector<partial_sweep>& PS, chromosome& chr)
   {
-    // output trajectories of followed mutations and set s=0 for partial sweeps 
+    // output trajectories of followed mutations and set s = 0 for partial sweeps
 
     // find all polymorphism of the types that are to be tracked
 
@@ -1755,7 +1801,7 @@ public:
 	      {
 		for (int j=0; j<TM.size(); j++)
 		  {
-		    if (it->second.G_child[i][k].t == TM[j]) { add_mut(P,it->second.G_child[i][k]); }
+		    if (it->second.G_child[i][k].t == TM[j]) { add_mut(P, it->second.G_child[i][k], it->second); }
 		  }
 	      }
 	  }
@@ -1791,7 +1837,7 @@ public:
 		      {
 			if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t) 
 			  {
-			    add_mut(P,it->second.G_child[i][k]); 
+			    add_mut(P, it->second.G_child[i][k], it.second);
 			  }
 		      }
 		  }
@@ -1829,7 +1875,7 @@ public:
 	      }
 	  }
       }
-  }
+  } // end of method track_mutations()
 
 
   void evolve_subpopulation(int i, chromosome& chr)
@@ -2044,27 +2090,41 @@ public:
     // print all mutations and all genomes 
 
     cout << "Populations:" << endl;
-    for (it = begin(); it != end(); it++) {  cout << "p" << it->first << " " << it->second.N << endl; }
+    // iterating over subpopulations
+    for (it = begin(); it != end(); it++)
+      {
+        cout << "p" << it->first << " " << it->second.N << endl; // print size of subpopulation
+      }
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
 
     // add all polymorphisms
-
-    for (it = begin(); it != end(); it++) // go through all subpopulations
+    // TODO: GO ON HERE (6) extending this to account for subpopulation-specific prevalences
+    for (it = begin(); it != end(); it++) // iterate over all subpopulations
       {
-	for (int i=0; i<2*it->second.N; i++) // go through all children
-	  {
-	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
-	      {
-		add_mut(P,it->second.G_child[i][k]);
-	      }
-	  }
-      }
+        for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
+          {
+            for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate over all mutations;
+              // note that mutations in a genome (here, G_child[i]) are ordered by the key
+              // identical to their physical position
+              {
+                add_mut(P, it->second.G_child[i][k], it->second); // add mutation k to P or
+                  // increase its prevalence if already contained in P; prevalence updates must be
+                  // made specifically to the subpopulation
+              } // end of iterate over all mutations
+          } // end of iterate over all children
+      } // end of iterate over all subpopulations
 
     cout << "Mutations:"  << endl;
-    
-    for (P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(P_it->first,chr); }
+
+    // print mutation id, mutation-type, position, selection coefficient and dominance in the
+      // reference environment, total prevalence in the entire population, and subpopulation-
+      // specific prevalences
+    for (P_it = P.begin(); P_it != P.end(); P_it++)
+      {
+        P_it->second.print(P_it->first, chr); // the key is the physical position
+      }
 
     cout << "Genomes:" << endl;
 
@@ -2085,7 +2145,7 @@ public:
 	  }
       }
 
-  }
+  } // end of method print_all() 1
 
 
   void print_all(ofstream& outfile, chromosome& chr)
@@ -2106,7 +2166,7 @@ public:
 	  {
 	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
 	      {
-		add_mut(P,it->second.G_child[i][k]);
+		add_mut(P, it->second.G_child[i][k], it.second);
 	      }
 	  }
       }
@@ -2134,7 +2194,7 @@ public:
 	  }
       }
 
-  }
+  } // end of method print_all() 2
 
 
   void print_sample(int i, int n, chromosome& chr)
@@ -2155,7 +2215,7 @@ public:
 
 	for (int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
 	  {
-	    add_mut(P,find(i)->second.G_child[j][k]);
+	    add_mut(P, find(i)->second.G_child[j][k], find(i)->second);
 	  }
       }
 
@@ -2199,7 +2259,7 @@ public:
 
 	for (int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
 	  {
-	    add_mut(P,find(i)->second.G_child[j][k]);
+	    add_mut(P, find(i)->second.G_child[j][k], find(i)->second);
 	  }
       }
 
@@ -2271,36 +2331,45 @@ public:
     return id;
   }
 
-
-  void add_mut(multimap<int,polymorphism>& P, mutation m)
+  // TODO: GO ON HERE (7) extending this function to deal with subpopulation-specific prevalences
+  void add_mut(multimap<int,polymorphism>& P, mutation m, const population& pop)
   {
-    // if mutation is present in P increase prevalence, otherwise add it
+    // if mutation is present in P (i.e. in the entire population) increase prevalence in the
+    // appropriate subpopulation pop, otherwise add it to P for the appropriate subpopulation pop;
+    // note that P is not a population, but a map of polymorphisms
 
-    int id = 0;
+    int id = 0; // the value assigned to no existing mutation; ids start at 1
 
     // iterate through all mutations with same position
 
     multimap<int,polymorphism>::iterator it;
-    pair<multimap<int,polymorphism>::iterator,multimap<int,polymorphism>::iterator> range = P.equal_range(m.x);
-    it = range.first;
+    pair<multimap<int,polymorphism>::iterator,multimap<int,polymorphism>::iterator> range = P.equal_range(m.x); // establish the range of mutations in P with the same physical position x;
+      // the implementation below makes sure that mutations are added to P using their position x
+      // as the key, by which they are ordered in the multimap
+    it = range.first; // initialise iterator to first instance of mutation
 
+    // iterate over mutations at the same physical position
     while (it != range.second)
       {
-	if (it->second.t == m.t && it->second.s == m.s) 
-	  { 
-	    id = it->second.i;
-	    it->second.n++;
-	    it = range.second;
-	  }
-	else{ it++; }
-      }
+        // if mutation m is identical in state (i.e. type and selection coefficient in the
+          // reference environment) with the currently visited mutation
+        if (it->second.t == m.t && it->second.s == m.s)
+          {
+            id = it->second.i; // obtain id of mutation already present at x
+            it->second.n++; // increase counter
+            it = range.second; // set iterator equal to end of last mutation at x
+          }
+        else
+          { it++; }
+      } // end of iterate over mutations at the same physical position
 
     // if not already present, add mutation to P
 
     if (id == 0)
       {
-	id = P.size()+1;
-	P.insert(pair<int,polymorphism>(m.x,polymorphism(id,m.t,m.s,1)));
+        id = P.size()+1;
+        P.insert(pair<int,polymorphism>(m.x, polymorphism(id, m.t, m.s, 1))); // the last argument
+          // to the constructor of polymorphism is the prevalence, here n = 1
       }
   } // end of add_mut() method
 
