@@ -561,9 +561,9 @@ public:
     // for each subpopulation
     for (nit = n.begin(); nit != n.end(); nit++)
       {
-        cout << " p" << nit->first << " " << nit->second;
+        outfile << " p" << nit->first << " " << nit->second;
       } // end of for each subpopulation
-    cout << endl;
+    outfile << endl;
 
   } // end of method print()
 
@@ -1682,7 +1682,6 @@ public:
         set_migration(i, j, m);
       } // end of set migration rate
 
-    // TODO: GO ON HERE (5) checking and understanding.
     if (type == 'A') // output state of entire population
       {
         if (E.s.size() == 0) // if no filename given (i.e. if printing to screen)
@@ -1711,33 +1710,42 @@ public:
                 cerr << "ERROR (output): could not open "<< E.s[0].c_str() << endl;
                 exit(1);
               }
-	  }
-      }
+          } // end of if filename given
+      } // end of output state of entire population
 
+    // TODO: GO ON HERE (5) checking and understanding.
     if (type == 'R') // output random subpopulation sample
       {
-	string sub = E.s[0]; sub.erase(0, 1);
+        string sub = E.s[0];
+        sub.erase(0, 1); // remove leading "p" of subpopulation id
 
-	int    i = atoi(sub.c_str());
-	int    n = atoi(E.s[1].c_str());   
-	cout << "#OUT: " << g << " R p" << i << " " << n << endl;
+        int i = atoi(sub.c_str()); // subpopulation id
+        int n = atoi(E.s[1].c_str()); // sample size (number of haploid genomes)
 
-	if (E.s.size() == 3 && E.s[2] == "MS") { print_sample_ms(i,n,chr); }
-	else { print_sample(i,n,chr); }
-      }
+        cout << "#OUT: " << g << " R p" << i << " " << n << endl;
+
+        if (E.s.size() == 3 && E.s[2] == "MS") // if ms format requested
+          {
+            print_sample_ms(i, n, chr);
+          }
+        else
+          {
+            print_sample(i, n, chr);
+          }
+      } // end of output random subpopulation sample
 
     if (type == 'F') // output list of fixed mutations
       {
 	cout << "#OUT: " << g << " F " << endl;
 	cout << "Mutations:" << endl;
 	for (int i=0; i<Substitutions.size(); i++) { cout << i+1; Substitutions[i].print(chr); }
-      }
+      } // end of output list of fixed mutations
 
     if (type == 'T') // track mutation-types
       {
 	string sub = E.s[0]; sub.erase(0, 1);
 	FM.push_back(atoi(sub.c_str()));
-      }
+      } // end of track mutation-types
 
     if (type == 'E') // assign environment to subpopulation
       {
@@ -2220,7 +2228,7 @@ public:
     cout << "Genomes:" << endl;
 
     // print all genomes
-    // TODO: GO ON HERE (6) extending this to account for subpopulation-specific prevalences
+
     for (it = begin(); it != end(); it++) // iterate over all subpopulations
       {
         for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
@@ -2246,46 +2254,57 @@ public:
     // print all mutations and all genomes 
 
     outfile << "Populations:" << endl;
-    for (it = begin(); it != end(); it++) {  outfile << "p" << it->first << " " << it->second.N << endl; }
+    // iterating over subpopulations
+    for (it = begin(); it != end(); it++)
+      {
+        outfile << "p" << it->first << " " << it->second.N << endl;
+      }
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
 
     // add all polymorphisms
-
-    for (it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // iterate over all subpopulations
       {
-	for (int i=0; i<2*it->second.N; i++) // go through all children
-	  {
-	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
-	      {
-		add_mut(P, it->second.G_child[i][k], it.first);
-	      }
-	  }
-      }
+        for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
+          {
+            for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate over all mutations
+              {
+                add_mut(P, it->second.G_child[i][k], it.first);
+              } // end of iterate over all mutations
+          } // end of iterate over all children
+      } // end of iterate over all subpopulations
 
     outfile << "Mutations:"  << endl;
-    
-    for (P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(outfile,P_it->first,chr); }
+
+    // write mutation id, mutation-type, position, selection coefficient and dominance in the
+      // reference environment, total prevalence in the entire population, and subpopulation-
+      // specific prevalences
+    for (P_it = P.begin(); P_it != P.end(); P_it++)
+      {
+        P_it->second.print(outfile, P_it->first, chr);
+      }
 
     outfile << "Genomes:" << endl;
 
-    // print all genomes
+    // write all genomes
 
-    for (it = begin(); it != end(); it++) // go through all subpopulations
+    for (it = begin(); it != end(); it++) // iterate over all subpopulations
       {
-	for (int i=0; i<2*it->second.N; i++) // go through all children
-	  {
-	    outfile << "p" << it->first << ":" << i+1;
-
-	    for (int k=0; k<it->second.G_child[i].size(); k++) // go through all mutations
-	      {
-		int id = find_mut(P,it->second.G_child[i][k]);
-		outfile << " " << id; 
-	      }
-	    outfile << endl;
-	  }
-      }
+        for (int i = 0; i < 2*it->second.N; i++) // iterate over all children
+          {
+            outfile << "p" << it->first << ":" << i+1;
+            // write rest of line
+            for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate over all mutations
+              {
+                // returns id of mutation found in P; if no mutation is found in P, that mutation
+                  // is added to P as a polymorphism and the id returned
+                int id = find_mut(P, it->second.G_child[i][k]);
+                outfile << " " << id;
+              }
+            outfile << endl;
+          } // end of iterate over all children
+      } // end of iterate over all subpopulations
 
   } // end of method print_all() 2
 
@@ -2294,43 +2313,58 @@ public:
   {
     // print sample of n genomes from subpopulation  i
 
-    if (count(i)==0) { cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1); }
+    if (count(i) == 0)
+      {
+        cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1);
+      }
 
-    vector<int> sample; 
+    vector<int> sample; // collecting indices of sampled genomes in subpopulation i
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
     
-    for (int s=0; s<n; s++) 
-      { 
-	int j = gsl_rng_uniform_int(rng,find(i)->second.G_child.size());
-	sample.push_back(j);
+    // iterate over random genomes to be drawn
+    for (int s = 0; s < n; s++)
+      {
+        // draw a random index for a haploid genome in subpopulation i
+        int j = gsl_rng_uniform_int(rng, find(i)->second.G_child.size());
+        sample.push_back(j);
 
-	for (int k = 0; k < find(i)->second.G_child[j].size(); k++) // go through all mutations
-	  {
-	    add_mut(P, find(i)->second.G_child[j][k], find(i)->first);
-	  }
-      }
+        for (int k = 0; k < find(i)->second.G_child[j].size(); k++) // iterate over all mutations
+          // present in genome j
+          {
+            add_mut(P, find(i)->second.G_child[j][k], find(i)->first);
+          } // end of for each mutation
+      } // end of for each random genome to be drawn
 
     cout << "Mutations:"  << endl;
-    
-    for (P_it = P.begin(); P_it != P.end(); P_it++) { P_it->second.print(P_it->first,chr); }
+
+    // print mutation id, mutation-type, position, selection coefficient and dominance in the
+      // reference environment, total prevalence in the entire population, and subpopulation-
+      // specific prevalences
+    for (P_it = P.begin(); P_it != P.end(); P_it++)
+      {
+        P_it->second.print(P_it->first, chr);
+      }
 
     cout << "Genomes:" << endl;
 
     // print all genomes
 
-    for (int j=0; j<sample.size(); j++) // go through all children
+    for (int j = 0; j < sample.size(); j++) // iterate over all children (i.e. haploid genomes
+      // drawn)
       {
-	cout << "p" << find(i)->first << ":" << sample[j]+1;
+        cout << "p" << find(i)->first << ":" << sample[j] + 1; // write subpopulation id and
+          // genome index
 
-	for (int k=0; k<find(i)->second.G_child[sample[j]].size(); k++) // go through all mutations
-	  {
-	    int id = find_mut(P,find(i)->second.G_child[sample[j]][k]);
-	    cout << " " << id; 
-	  }
-	cout << endl;
-      }
+        for (int k=0; k<find(i)->second.G_child[sample[j]].size(); k++) // iterate over all
+          // mutations
+          {
+            int id = find_mut(P, find(i)->second.G_child[sample[j]][k]);
+            cout << " " << id;
+          } // end of iterate over all mutations
+        cout << endl;
+      } // end of iterate over all children
   } // end of method print_sample()
 
 
@@ -2338,23 +2372,29 @@ public:
   {
     // print sample of n genomes from subpopulation  i
 
-    if (count(i)==0) { cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1); }
+    if (count(i) == 0)
+    {
+      cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl;
+      exit(1);
+    }
 
-    vector<int> sample; 
+    vector<int> sample; // collecting indices of sampled genomes in subpopulation i
 
     multimap<int,polymorphism> P;
     multimap<int,polymorphism>::iterator P_it;
-    
-    for (int s=0; s<n; s++) 
-      { 
-	int j = gsl_rng_uniform_int(rng,find(i)->second.G_child.size());
-	sample.push_back(j);
 
-	for (int k=0; k<find(i)->second.G_child[j].size(); k++) // go through all mutations
-	  {
-	    add_mut(P, find(i)->second.G_child[j][k], find(i)->first);
-	  }
-      }
+    // iterate over random genomes to be drawn
+    for (int s = 0; s < n; s++)
+      { 
+        // draw a random index for a haploid genome in subpopulation i
+        int j = gsl_rng_uniform_int(rng, find(i)->second.G_child.size());
+        sample.push_back(j);
+
+        for (int k = 0; k < find(i)->second.G_child[j].size(); k++) // iterate over all mutations
+          {
+            add_mut(P, find(i)->second.G_child[j][k], find(i)->first);
+          } // end of for each mutation
+      } // end of for each random genome to be drawn
 
     // print header
 
@@ -2362,15 +2402,16 @@ public:
 
     // print all positions
 
-    if (P.size()>0)
+    if (P.size() > 0) // if there are polymorphisms
       {
-	cout << "positions:"; 
-	for (P_it = P.begin(); P_it != P.end(); P_it++) 
-	  { 
-	    cout << " " << fixed << setprecision(7) << (double)(P_it->first+1)/(chr.L+1); 
-	  }
-	cout << endl;
-      }
+        cout << "positions:";
+
+        for (P_it = P.begin(); P_it != P.end(); P_it++) // iterate over polymorphisms
+          {
+            cout << " " << fixed << setprecision(7) << (double)(P_it->first+1)/(chr.L+1);
+          } // end of iterate over polymorphisms
+        cout << endl;
+      } // end of if there are polymorphisms
 
     // print genotypes
 
@@ -2395,9 +2436,8 @@ public:
 	  }
 	cout << genotype << endl;
       }
-  }
+  } // end of method print_sample_ms()
 
-  // TODO: GO ON HERE (7) extending this function to deal with subpopulation-specific prevalences.
   int find_mut(multimap<int,polymorphism>& P, mutation m)
   {
     // find m in P and return its id
@@ -2412,19 +2452,20 @@ public:
     // advance through polymorphisms
     while (it != range.second)
       {
-        // GO ON HERE (8)
+        // if mutation m and currently visited polymorphism are identical in terms of mutation-type
+          // and selection coefficient
         if (it->second.t == m.t && it->second.s == m.s)
           {
             id = it->second.i;
-            it->second.n++;
+            // it->second.n++; // A mistake in the original version of SLiM
             it = range.second;
           }
         else
           { it++; }
-      }
+      } // end of advance through polymorphisms
     
     return id;
-  }
+  } // end of method find_mut()
 
 
   void add_mut(multimap<int,polymorphism>& P, mutation m, int spid)
