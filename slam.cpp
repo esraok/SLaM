@@ -890,11 +890,6 @@ public:
 
   } // end of constructor
 
-  void assign_environment(environment& e)
-  {
-    E = e;
-  }
-
   int draw_individual()
   {
     return gsl_ran_discrete(rng, LT);
@@ -1609,6 +1604,26 @@ public:
       find(i)->second.m.insert(pair<int,double>(j, m));
   } // end of method set_migration()
 
+  void assign_environment(int i, int e, const map<int, environment>& envs)
+
+    // assign environment e to subpopulation i
+  {
+
+    if (count(i) == 0)
+      {
+        cerr << "ERROR (assign environment): no subpopulation p"<< i << endl;
+        exit(1);
+      }
+
+    if (envs.count(e) == 0)
+      {
+        cerr << "ERROR (assign environment): no environment e"<< e << endl;
+        exit(1);
+      }
+
+    find(i)->second.E = envs.find(e)->second;
+
+  } // end of method assign_environment()
 
   /*
    Executes event E in generation g for chromosome chr. The vector FM stores the id's of mutation
@@ -1671,8 +1686,8 @@ public:
 	  
     if (type == 'M') // change migration rate
       {
-        string sub1 = E.s[0]; sub1.erase(0,1);
-        string sub2 = E.s[1]; sub2.erase(0,1);
+        string sub1 = E.s[0]; sub1.erase(0, 1);
+        string sub2 = E.s[1]; sub2.erase(0, 1);
 
         int    i = atoi(sub1.c_str());
         int    j = atoi(sub2.c_str());
@@ -1713,7 +1728,6 @@ public:
           } // end of if filename given
       } // end of output state of entire population
 
-    // TODO: GO ON HERE (5) checking and understanding.
     if (type == 'R') // output random subpopulation sample
       {
         string sub = E.s[0];
@@ -1736,20 +1750,35 @@ public:
 
     if (type == 'F') // output list of fixed mutations
       {
-	cout << "#OUT: " << g << " F " << endl;
-	cout << "Mutations:" << endl;
-	for (int i=0; i<Substitutions.size(); i++) { cout << i+1; Substitutions[i].print(chr); }
+        cout << "#OUT: " << g << " F " << endl;
+        cout << "Mutations:" << endl;
+        for (int i = 0; i < Substitutions.size(); i++) // for each substitution
+          {
+            cout << i+1;
+            // print mutation type, position, selection coefficient and dominance coefficient (both
+              // in the reference environment), and generation at which fixed
+            Substitutions[i].print(chr);
+          } // end of for each substitution
       } // end of output list of fixed mutations
 
     if (type == 'T') // track mutation-types
       {
-	string sub = E.s[0]; sub.erase(0, 1);
-	FM.push_back(atoi(sub.c_str()));
+        string sub = E.s[0];
+        sub.erase(0, 1);
+        FM.push_back(atoi(sub.c_str()));
       } // end of track mutation-types
 
     if (type == 'E') // assign environment to subpopulation
       {
-        // TODO: Implement this.
+        // event has two parameters, the subpopulation (e.g. p1) and an environment (e.g. e1) to
+          // be assigned to that subpopulation
+        string sub1 = E.s[0]; sub1.erase(0, 1); // numeric id of environment
+        string sub2 = E.s[1]; sub2.erase(0, 1); // numeric id of environment
+
+        int p = atoi(sub1.c_str());
+        int e = atoi(sub2.c_str());
+
+        assign_environment(p, e, envs);
 
       } // end of if assign environment
 
@@ -2408,34 +2437,35 @@ public:
 
         for (P_it = P.begin(); P_it != P.end(); P_it++) // iterate over polymorphisms
           {
-            cout << " " << fixed << setprecision(7) << (double)(P_it->first+1)/(chr.L+1);
+            cout << " " << fixed << setprecision(7) << (double)(P_it->first+1)/(chr.L + 1);
           } // end of iterate over polymorphisms
         cout << endl;
       } // end of if there are polymorphisms
 
     // print genotypes
 
-    for (int j=0; j<sample.size(); j++) // go through all children
+    for (int j = 0; j < sample.size(); j++) // iterate over all children
       {
-	string genotype(P.size(),'0');
+        string genotype(P.size(), '0');
 
-	for (int k=0; k<find(i)->second.G_child[sample[j]].size(); k++) // go through all mutations
-	  {
-	    int pos = 0;
-	    mutation m = find(i)->second.G_child[sample[j]][k];
+        for (int k = 0; k < find(i)->second.G_child[sample[j]].size(); k++) // iterate over all
+          // mutations
+          {
+            int pos = 0;
+            mutation m = find(i)->second.G_child[sample[j]][k];
 
-	    for (P_it = P.begin(); P_it != P.end(); P_it++) 
-	      {
-		if (P_it->first == m.x && P_it->second.t == m.t && P_it->second.s == m.s)
-		  {
-		    genotype.replace(pos,1,"1");
-		    break;
-		  }
-		pos++;
-	      }
-	  }
-	cout << genotype << endl;
-      }
+            for (P_it = P.begin(); P_it != P.end(); P_it++)
+              {
+                if (P_it->first == m.x && P_it->second.t == m.t && P_it->second.s == m.s)
+                  {
+                    genotype.replace(pos, 1, "1");
+                    break;
+                  }
+                pos++;
+              } // end of for each polymorphism
+          } // end of for each mutation
+        cout << genotype << endl;
+      } // end of for each child
   } // end of method print_sample_ms()
 
   int find_mut(multimap<int,polymorphism>& P, mutation m)
