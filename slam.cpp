@@ -184,7 +184,6 @@ public:
 
 
 
-
 class mutation_type
 {
   // a mutation type is specified by the DFE and the dominance coefficient. These parameters
@@ -397,7 +396,7 @@ public:
     for (int i = 1; i < rec_r.size(); i++)
       { 
         B[i] = rec_r[i]*(double)(rec_x[i] - rec_x[i-1]); // weight of the ith recombination stratum
-        R+= B[i];
+        R += B[i];
         if (rec_x[i] > L) // L is the cumulative length of all genomic elements; at this point, it
           // equals the length after all defined genomic elements have been visited; note that
           // the whole chromosome does not need to be covered by genomic elements, which is why
@@ -1462,7 +1461,7 @@ public:
   }
 }; // end of class subpopulation
 
-// TODO: GO ON HERE (4). Tidy up and understand details.
+
 class population : public map<int, subpopulation>
 {
   // the population is a map of subpopulations
@@ -1603,6 +1602,7 @@ public:
 
       find(i)->second.m.insert(pair<int,double>(j, m));
   } // end of method set_migration()
+
 
   void assign_environment(int i, int e, const map<int, environment>& envs)
 
@@ -1772,7 +1772,7 @@ public:
       {
         // event has two parameters, the subpopulation (e.g. p1) and an environment (e.g. e1) to
           // be assigned to that subpopulation
-        string sub1 = E.s[0]; sub1.erase(0, 1); // numeric id of environment
+        string sub1 = E.s[0]; sub1.erase(0, 1); // numeric id of subpopulation
         string sub2 = E.s[1]; sub2.erase(0, 1); // numeric id of environment
 
         int p = atoi(sub1.c_str());
@@ -1789,7 +1789,7 @@ public:
   {
     // introduce user-defined mutation
     // TODO: If a non-neutral mutation is to be introduced at a position at which there already
-      // is a non-neutral mutation, the preexisting mutation must be re-assigned a neutral type
+      // is a non-neutral mutation, the preexisting mutation must be reassigned a neutral type
       // unless the mutation to be introduced and the preexisting mutation are identical in state
       // (i.e. they are of the same mutation type and have identical selection coefficients).
     // TODO: In addition to the rule above, do not allow more than one mutation at a given position
@@ -1992,74 +1992,109 @@ public:
 
 
   void evolve_subpopulation(int i, chromosome& chr)
-  {
-    int g1, g2, p1, p2, n_mut_1, n_mut_2;
 
+  // evolving subpopulation indexed by i
+
+  {
+    int g1, g2; // indices of the two haploid genomes belonging to a child
+    int p1, p2; // indices of the two diploid parents
+    int n_mut_1, n_mut_2;
 
     // create map of shuffled children ids
 
-    int child_map[find(i)->second.N];          
-    for (int j = 0; j < find(i)->second.N; j++) { child_map[j] = j; }
-    gsl_ran_shuffle(rng,child_map,find(i)->second.N,sizeof(int));
+    int child_map[find(i)->second.N]; // declare array child_map of size equal to size of
+      // subpopulation i
+    // fill child_map with children ids and shuffle them
+    for (int j = 0; j < find(i)->second.N; j++)
+      {
+        child_map[j] = j;
+      }
+    gsl_ran_shuffle(rng, child_map, find(i)->second.N, sizeof(int));
 
 
     int c = 0; // counter over all N children (will get mapped to child_map[c])
 
-    // migration, loop over all source populations
+    // migration; loop over all subpopulation from which subpopulation i receives migrants
     
     map<int,double>::iterator it;
 
-    for (map<int,double>::iterator it = find(i)->second.m.begin(); it != find(i)->second.m.end(); it++)
+    // for each entry in the map of migration rates pertaining to subpopulation i
+    for (/* map<int,double>::iterator*/ it = find(i)->second.m.begin(); it != find(i)->second.m.end(); it++)
       {
-	int n_migrants = (int)(it->second * find(i)->second.N + 0.5);
-        
-	for (int m=0; m<n_migrants; m++) 
-	  {
-	    if (c >= find(i)->second.N) { cerr << "ERROR (evolve subpopulation): too many migrants in subpopulation "<< i << endl; exit(1); }
 
-	    g1 = 2*child_map[c];   // child genome 1
-	    g2 = 2*child_map[c]+1; // child genome 2
+        // deterministically determine the number of immigrants from subpopulation corresponding
+          // to it to subpopulation i
+        // Note that in a new version, the number of immigrants will be a random number
+        int n_migrants = (int)(it->second * find(i)->second.N + 0.5);
 
-	    // draw parents in source population
+        // for each immigrant to be drawn
+        for (int m = 0; m < n_migrants; m++)
+          {
+            if (c >= find(i)->second.N)
+              {
+                cerr << "ERROR (evolve subpopulation): too many migrants in subpopulation "<< i << endl;
+                exit(1);
+              }
 
-	    p1 = gsl_rng_uniform_int(rng,find(it->first)->second.G_parent.size()/2);
-	    if (gsl_rng_uniform(rng) < find(it->first)->second.S) { p2 = p1; }
-	    else { p2 = gsl_rng_uniform_int(rng,find(it->first)->second.G_parent.size()/2); }
+            g1 = 2*child_map[c];   // child genome 1
+            g2 = 2*child_map[c]+1; // child genome 2
 
-	    // recombination, gene-conversion, mutation
+            // draw parents in source population
 
-	    crossover_mutation(i,g1,it->first,2*p1,2*p1+1,chr);
-	    crossover_mutation(i,g2,it->first,2*p2,2*p2+1,chr);
+            p1 = gsl_rng_uniform_int(rng, find(it->first)->second.G_parent.size()/2); // draws the
+              // index of a parent in the currently relevant subpopulation at random
+            if (gsl_rng_uniform(rng) < find(it->first)->second.S) // if this reproduction event is
+              // one of selfing
+              {
+                p2 = p1;
+              }
+            else // no selfing; draw index of second parent
+              {
+                p2 = gsl_rng_uniform_int(rng,find(it->first)->second.G_parent.size()/2);
+              }
 
-	    c++;
-	  }
-      }
+            // recombination, gene-conversion, mutation
+
+            crossover_mutation(i, g1, it->first, 2*p1, 2*p1+1, chr);
+            crossover_mutation(i, g2, it->first, 2*p2, 2*p2+1, chr);
+
+            c++;
+          } // end of for each immigrant to be drawn
+      } // end of for each entry in the map of migration rates pertaining to subpopulation i
 	    
-    // remainder
+    // remainder, i.e. children not resulting from immigration, but from matings within
+      // subpopulation i
 
-    while (c<find(i)->second.N) 
+    // for each remaining child
+    while (c < find(i)->second.N)
       {
-	g1 = 2*child_map[c];   // child genome 1
-	g2 = 2*child_map[c]+1; // child genome 2
+        g1 = 2*child_map[c];   // child genome 1
+        g2 = 2*child_map[c]+1; // child genome 2
 
-	p1 = find(i)->second.draw_individual();                 // parent 1
-	if (gsl_rng_uniform(rng) < find(i)->second.S) { p2 = p1; } // parent 2
-	else { p2 = find(i)->second.draw_individual(); }
+        p1 = find(i)->second.draw_individual(); // parent 1
+        if (gsl_rng_uniform(rng) < find(i)->second.S) // if selfing
+          {
+            p2 = p1;
+          }
+        else // no selfing
+          {
+            p2 = find(i)->second.draw_individual();
+          }
 
-	crossover_mutation(i,g1,i,2*p1,2*p1+1,chr);
-	crossover_mutation(i,g2,i,2*p2,2*p2+1,chr);
+        crossover_mutation(i, g1, i, 2*p1, 2*p1+1, chr);
+        crossover_mutation(i, g2, i, 2*p2, 2*p2+1, chr);
 
-	c++;
-      }
-  }
+        c++;
+      } // end of for each remaining child
+  } // end of method evolve_subpopulation()
 
 
   void crossover_mutation(int i, int c, int j, int P1, int P2, chromosome& chr)
   {
     // child genome c in subpopulation i is assigned outcome of cross-overs at breakpoints r 
-    // between parent genomes p1 and p2 from subpopulation j and new mutations added
+    // between parent genomes p1 and p2 from subpopulation j and new mutations are added
     // 
-    // example R = (r1,r2)
+    // example R = (r1, r2)
     // 
     // mutations (      x < r1) assigned from p1
     // mutations (r1 <= x < r2) assigned from p2
@@ -2067,6 +2102,7 @@ public:
     //
     // p1 and p2 are swapped in half of the cases to assure random assortement
 
+    // TODO: GO ON HERE (4). Tidy up and understand details.
     if (gsl_rng_uniform_int(rng,2)==0) { int swap = P1; P1 = P2; P2 = swap; } // swap p1 and p2
 
     find(i)->second.G_child[c].clear();
@@ -2561,7 +2597,8 @@ public:
 void get_line(ifstream& infile, string& line)
 {
   getline(infile, line);
-  if (line.find("/")!= string::npos) { line.erase(line.find("/")); } // remove all after "/"; these
+  if (line.find("/")!= string::npos)
+    { line.erase(line.find("/")); } // remove all after "/"; these
         // lines are interpreted as comments
   line.erase(0, line.find_first_not_of(' ')); // remove leading whitespaces
   line.erase(line.find_last_not_of(' ') + 1); // remove trailing whitespaces
@@ -4099,7 +4136,6 @@ int main(int argc,char *argv[])
 
   vector<partial_sweep> PS;
 
-  // GO ON HERE (2): understand, and extend.
   initialize(P, input_file, chr, T, FI, E, O, IM, PS, EV, REV, P.parameters);
  
   // evolve over t generations
@@ -4117,12 +4153,19 @@ int main(int argc,char *argv[])
    
       // evolve all subpopulations
 
-      for (itP = P.begin(); itP != P.end(); itP++) { P.evolve_subpopulation(itP->first,chr); }     
-            
+      for (itP = P.begin(); itP != P.end(); itP++) // for each subpopulation
+        {
+          // GO ON HERE (2): understand, and extend.
+          P.evolve_subpopulation(itP->first, chr);
+        } // end of for each subpopulation
+
       // introduce user-defined mutations
         
       pair<multimap<int,introduced_mutation>::iterator,multimap<int,introduced_mutation>::iterator> rangeIM = IM.equal_range(g);
-      for (itIM = rangeIM.first; itIM != rangeIM.second; itIM++) {
+
+      // for all mutations to be introduced in the current generation
+      for (itIM = rangeIM.first; itIM != rangeIM.second; itIM++)
+        {
           // test
           // P.print_all(chr);
           
@@ -4130,7 +4173,7 @@ int main(int argc,char *argv[])
           
           // test
           // P.print_all(chr);
-      }
+        } // end of for all mutations to be introduce in the current generation
 
       // execute output events
 
