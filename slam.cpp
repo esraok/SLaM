@@ -303,11 +303,16 @@ private:
 
 public:
 
-  map<int,mutation_type>        mutation_types;
+  map<int,mutation_type>        mutation_types; // storing all possible mutation-types, the key
+    // being the id of the mutation-type
   map<int,genomic_element_type> genomic_element_types; // storing the genomic element type that
     // the genomic elements of this chromosome belong to
   vector<int>                   rec_x; // vector of end points of strata of a given recomb. rate
   vector<double>                rec_r; // vector of recombination rates for each stratum
+
+  map<int,int>                  seg_nonneutr_mut; // storing the mutation-type id of all
+    // non-neutral mutations that are segregating in the entire population, the key being their
+    // physical position
 
   int    L;   // length of chromosome
   double M;   // overall mutation rate, being built here as the product of the per-base pair rate
@@ -322,15 +327,18 @@ public:
   void initialize_rng()
   {
     if (size() == 0) // if there are no genomic elements (initialisation must have failed)
-      { cerr << "ERROR (initialize): empty chromosome" << endl;
+      {
+        cerr << "ERROR (initialize): empty chromosome" << endl;
         exit(1);
       }
     if (rec_r.size() == 0) // if there are no recombination rates (initialisation must have failed)
-      { cerr << "ERROR (initialize): recombination rate not specified" << endl;
+      {
+        cerr << "ERROR (initialize): recombination rate not specified" << endl;
         exit(1);
       }
     if (!(M >= 0)) // initially, M is assigned the per-base pair recombination rate
-      { cerr << "ERROR (initialize): invalid mutation rate" << endl;
+      {
+        cerr << "ERROR (initialize): invalid mutation rate" << endl;
         exit(1);
       }
 
@@ -414,9 +422,14 @@ public:
   } // end of method draw_n_mut()
  
 
+  // GO ON HERE (5). Adjust to the new mutation scheme, where a non-neutral mutation at position
+    // x is only allowed if no other non-neutral mutation other than one identical in state with
+    // the one to be introduced is present at x.
+  // TODO: Add argument vector<mutation>& M to be modified. Add mutation only if it may be added
+    // according to the rule above.
   mutation draw_new_mut()
   {
-    int g = gsl_ran_discrete(rng, LT_M); // draw genomic element, with weights given by
+    int g = gsl_ran_discrete(rng, LT_M); // draw genomic element according to weights given by
       // length of element relative to the sum of lenghts of all elements
     genomic_element_type ge_type = genomic_element_types.find(operator[](g).i)->second; // get the genomic element type of the genomic element g
 
@@ -427,6 +440,9 @@ public:
 
     // position of new mutation, uniformly chosen over the length of the genomic element
     int x = operator[](g).s + gsl_rng_uniform_int(rng, operator[](g).e - operator[](g).s + 1);
+
+    // TODO: Introduce register with positions at which there is a non-neutral *segregating*
+      // mutation. Check against this register before introducing a new mutation.
 
     float s = mut_type.draw_s(); // selection coefficient
 
@@ -658,7 +674,7 @@ genome fixed(genome& G1, genome& G2)
 {
   // return genome G consisting only of the mutations that are present in both G1 and G2
 
-  genome G;
+  genome G; // a genome is a vector of mutations
 
   vector<mutation>::iterator g1 = G1.begin();
   vector<mutation>::iterator g2 = G2.begin();
@@ -2102,19 +2118,22 @@ public:
     //
     // p1 and p2 are swapped in half of the cases to assure random assortement
 
-    // TODO: GO ON HERE (4). Tidy up and understand details.
-    if (gsl_rng_uniform_int(rng,2)==0) { int swap = P1; P1 = P2; P2 = swap; } // swap p1 and p2
+    if (gsl_rng_uniform_int(rng, 2) == 0)
+      { int swap = P1; P1 = P2; P2 = swap; } // swap p1 and p2
 
     find(i)->second.G_child[c].clear();
 
     // create vector with the mutations to be added
 
     vector<mutation> M;
-    int n_mut = chr.draw_n_mut();
+    int n_mut = chr.draw_n_mut(); // draw random number of mutations
     // introduce n_mut new mutations
     for (int k = 0; k < n_mut; k++)
       {
+        // TODO: GO ON HERE (4). Tidy up and understand details.
         M.push_back(chr.draw_new_mut());
+        // Change to
+        // chr.draw_new_mut(M);
       }
     sort(M.begin(), M.end()); // sort by physical position
     
@@ -2192,9 +2211,11 @@ public:
     // perform change of generation at time g and update fitnesses given mutations on chromosome
       // chr assuming fitness interaction fi (additive or multiplicative)
 
-    // find and remove fixed mutations from the children in all subpopulations
+    // find and remove fixed mutations from the children in all subpopulations, and update the
+      // register of positions at which non-neutral mutations are segregating w.r.t. the entire
+      // population
     
-    remove_fixed(g);
+    remove_fixed(g, chr);
 
     // make children the new parents and update fitnesses
 
@@ -2206,11 +2227,11 @@ public:
   } // end of method swap_generations()
 
 
-  void remove_fixed(int g)
+  void remove_fixed(int g, chromosome& chr)
   {
-    // find mutations that are fixed in all child subpopulations and update the subsitutions
-      // vector
-    // g is the generation
+    // find mutations that are fixed in all subpopulations and update the substitutions vector
+
+    // g is the generation; chr is the chromosome
 
     genome G = begin()->second.G_child[0]; // copy the first genome in the first subpopulation
       // as a reference to which all other genomes across the entire population are compared; this
@@ -2221,10 +2242,13 @@ public:
         for (int i = 0; i < 2*it->second.N; i++) // iterate over child genomes
           {
             // returning a genome consisting only of mutations that are present in both genomes
-              // passed as arguments
+              // passed as arguments; one is the reference G (which is cumulatively updated), and
+              // the other genome is the child currently visited
             G = fixed(it->second.G_child[i], G);
           } // end of for each child genome
       } // end of for each subpopulation
+
+    // G is now a vector of those mutations that are fixed across the entire population
 
     // if the cumulative genome made up of mutations fixed across the entire population is not
       // empty
@@ -2242,9 +2266,23 @@ public:
               } // end of for each child genome
           } // end of for each subpopulation
 
-        // add substitution to book keeping; a substitution is a fixed mutation
-        for (int i = 0; i < G.size(); i++)
-          { Substitutions.push_back(substitution(G[i], g)); }
+        // add substitution to book keeping (a substitution is a fixed mutation); remove respective
+          // entry from register that holds position and type of non-neutral mutations segregating
+          // in the entire population
+        for (int i = 0; i < G.size(); i++) // for each fixed mutation
+          {
+            // recall that genome G is a vector of mutations
+
+            Substitutions.push_back(substitution(G[i], g));
+            // TODO: GO ON HERE
+            // remove from register of segregating non-neutral mutations
+            int check = chr.seg_nonneutr_mut.erase(G[i].x);
+            if (check != 1 && G[i].s != 0.0) // if no segregating non-neutral mutation has been
+              // removed and G[i] is a non-neutral mutation
+              {
+                cerr << ""
+              }
+          } // end of for each fixed mutation
 
       } // end of if genome G is not empty
   } // end of method remove_fixed()

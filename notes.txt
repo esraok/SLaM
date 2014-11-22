@@ -18,4 +18,5 @@
 - REMARK: The method polymorphism::print_noi() is used to print subpopulation-specific prevalences, yet in its current implementation, it gives dominance and selection coefficients valid for the reference environment, not for the respective subpopulation. This could be changed later, if needed.
 - Adjusting population::track_mutations() to account for changes in class polymorphism [DONE]
 - Improved formatting of population::remove_fixed(), polymorphic(), and fixed() [DONE]. REMARK: I have not fully checked these methods, but merely focussed on improving the formatting (indentation)
-- Proceed on l. 2105
+- Work on chromosome::draw_new_mut(), population::crossover_mutation(), and population::introduce_mutation(). For the latter, adjust to the new scheme of replacing previously existing non-neutral mutations at a given position x.
+- Proceed on l. 2283/320/384.
