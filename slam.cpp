@@ -690,7 +690,7 @@ class partial_sweep
   {
     t = T; x = X; p = P;
   }
-}; // end of class introduced_mutation
+}; // end of class partial sweep
 
 
 class genome : public vector<mutation>
@@ -1835,68 +1835,104 @@ public:
   void introduce_mutation(introduced_mutation M, chromosome& chr) 
   {
     // introduce user-defined mutation
+
+    // M is the mutation to be introduced (class introduced_mutation inherits from mutation)
+    // chr is the chromosome
+
     // TODO: If a non-neutral mutation is to be introduced at a position at which there already
       // is a non-neutral mutation, the preexisting mutation must be reassigned a neutral type
       // unless the mutation to be introduced and the preexisting mutation are identical in state
       // (i.e. they are of the same mutation type and have identical selection coefficients).
+
     // TODO: In addition to the rule above, do not allow more than one mutation at a given position
       // in a given haploid genome.
-    if (count(M.i)==0) { cerr << "ERROR (predetermined mutation): subpopulation "<< M.i << " does not exists" << endl; exit(1); }
+
+    // some tests
+
+    if (count(M.i) == 0)
+      {
+        cerr << "ERROR (predetermined mutation): subpopulation "<< M.i << " does not exists" << endl;
+        exit(1); }
     if (chr.mutation_types.count(M.t) == 0) 
-      { 
-	cerr << "ERROR (predetermined mutation): mutation type m"<< M.t << " has not been defined" << endl; exit(1); 
+      {
+        cerr << "ERROR (predetermined mutation): mutation type m"<< M.t << " has not been defined" << endl;
+        exit(1);
       }
     if (find(M.i)->second.G_child.size()/2 < M.nAA + M.nAa) 
-      { 
-	cerr << "ERROR (predetermined mutation): not enough individuals in subpopulation "<< M.i << endl; exit(1); 
+      {
+        cerr << "ERROR (predetermined mutation): not enough individuals in subpopulation "<< M.i << endl; exit(1);
       }
 
     mutation m;
 
     m.x = M.x; // position on genome
-    m.t = M.t; // mutation type (to be precise, its key)
+    m.t = M.t; // mutation type (to be precise, its key in the map mutation_types)
+
     // draw selection coefficient for novel mutation
     m.s = chr.mutation_types.find(M.t)->second.draw_s();
 
-    subpopulation *sp = &find(M.i)->second;
+    // OLD:
+    // subpopulation* sp = &find(M.i)->second; // sp is a pointer to the subpopulation in which the
+      // new mutation should be introduced
     
     // test: print all children
     // print_all(chr);
-      
-    // shuffle genomes in subpopulation (randomisation of order)
-      // this is to generate linkage equilibrium among loci and
-      // has been added by Simon Aeschbacher on 05/19/2014.
-    std::random_shuffle((*sp).G_child.begin(), (*sp).G_child.end());
-    
+
+    if (M.l == 'e') // if successive introduced mutations should be in linkage equilibrium
+      {
+        // suffle genomes in subpopulation (*sp) to generate linkage equilibrium
+        // OLD:
+        // std::random_shuffle((*sp).G_child.begin(), (*sp).G_child.end());
+        std::random_shuffle(find(M.i)->second.G_child.begin(), find(M.i)->second.G_child.end());
+
+      }
+    else if (M.l != 'd')
+      {
+        cerr << "ERROR (predetermined mutation): linkage flag is "<< M.l << "instead of either e for linkage equilibrium or d for linkage disequilibrium among introduced mutations" << endl;
+        exit(1);
+      }
+
     // test: print all children
     // print_all(chr);
     
     // introduce homozygotes
 
-    for (int j = 0; j < M.nAA; j++)
+    for (int j = 0; j < M.nAA; j++) // for each homozygote mutant individual to be created
       {
-    // recall: a genonme is a vector of mutations
-    // find subpopulation, then return two of its children
-	genome* g1 = &find(M.i)->second.G_child[2*j]; // recall: a diploid individual j is made up of
-      // haploid genomes 2*j and 2*j + 1
-	genome* g2 = &find(M.i)->second.G_child[2*j+1];
-    // append the new mutation to the end of the genotypes.
-	(*g1).push_back(m);
-	(*g2).push_back(m);
-    // sort the genomes
-	sort((*g1).begin(),(*g1).end()); // sorting according to physical position
-	sort((*g2).begin(),(*g2).end());
-    // unique(ForwardIterator first, ForwardIterator last): removes al but
+        // recall: a genonme is a vector of mutations
+
+        // find subpopulation, then return two of its children
+        genome* g1 = &find(M.i)->second.G_child[2*j]; // recall: a diploid individual j is made up
+          // of haploid genomes 2*j and 2*j + 1; returns a pointer to child genome 2*j in
+          // subpopulation M.i
+        genome* g2 = &find(M.i)->second.G_child[2*j + 1]; // returns a pointer to child genome
+          // 2*j + 1 in subpopulation M.i
+
+        // append the new mutation to the end of the genotypes
+
+        // GO ON HERE NEXT
+        // TODO: test against chr.seg_nonneutr_mut and, if needed, clear entire population from
+          // preexisting non-neutral mutation(s) at position m.x, unless the existing non-neutral mutation and the one to be introduced are identical in state (in terms of mutation-type and selection coefficient in the reference environment); if the latter is the case, act accordingly; clearing literally means iterating over all child genomes in all subpopulations and clearing genomes
+          // clearing each of them from
+        (*g1).push_back(m);
+        (*g2).push_back(m);
+
+        // sort the genomes
+        sort((*g1).begin(),(*g1).end()); // sorting according to physical position
+        sort((*g2).begin(),(*g2).end());
+
+        // unique(ForwardIterator first, ForwardIterator last): removes al but
           // the first element from every consecutive group of equivalent
           // elements in the range [first, last)
-    // erase(iterator first, iterator last): removes the range
+        // erase(iterator first, iterator last): removes the range
           // [first, last) of elements
-    // remove *consecutive* duplicate mutations
 
-	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end()); // operator ==: same position, same
-      // mutation type, and same selection coefficient (defined for comparison of mutation objects)
-	(*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
-      }
+        // remove *consecutive* duplicate mutations, where consequtive referst to physical position
+        (*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end()); // operator ==: same position,
+          // same mutation type, and same selection coefficient (defined for comparison of
+          // instances of class mutation
+        (*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
+      } // end of for each homozygote mutant individual to be created
 
     // introduce heterozygotes
 
@@ -2166,7 +2202,8 @@ public:
         // draw a new mutation and modify M such as to include the new mutation; note that the
           // mutation will not be introduced if it were to choose a position at which there already
           // is a segregating non-neutral mutation, unless that segregating non-neutral mutation is
-          // identical in state with the new mutation (w.r.t. the reference environment)
+          // identical in state with the new mutation (mutation-type and identical selection
+          // coefficient w.r.t. the reference environment)
         chr.draw_new_mut(M);
       }
     sort(M.begin(), M.end()); // sort by physical position
@@ -4292,7 +4329,7 @@ int main(int argc,char *argv[])
           // test
           // P.print_all(chr);
           
-          P.introduce_mutation(itIM->second,chr);
+          P.introduce_mutation(itIM->second, chr);
           
           // test
           // P.print_all(chr);
