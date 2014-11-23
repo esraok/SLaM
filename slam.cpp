@@ -110,9 +110,6 @@ public:
   int   t; // mutation type identifier
   int   x; // position
   float s; // selection coefficient
-    // TODO: selection coefficients (and dominance coefficients) must become environment-specific.
-    // Introduce class 'environment', and then assign a environment to each deme. environment
-    // assignments can change over time.
 
   // default constructor
   mutation(void) { ; }
@@ -310,9 +307,9 @@ public:
   vector<int>                   rec_x; // vector of end points of strata of a given recomb. rate
   vector<double>                rec_r; // vector of recombination rates for each stratum
 
-  map<int,int>                  seg_nonneutr_mut; // storing the mutation-type id of all
-    // non-neutral mutations that are segregating in the entire population, the key being their
-    // physical position
+  map<int,vector<double>>       seg_nonneutr_mut; // storing the mutation-type id and selection
+    // coefficient of all non-neutral mutations that are segregating in the entire population, the
+    // key being their physical position
 
   int    L;   // length of chromosome
   double M;   // overall mutation rate, being built here as the product of the per-base pair rate
@@ -422,12 +419,14 @@ public:
   } // end of method draw_n_mut()
  
 
-  // GO ON HERE (5). Adjust to the new mutation scheme, where a non-neutral mutation at position
-    // x is only allowed if no other non-neutral mutation other than one identical in state with
-    // the one to be introduced is present at x.
-  // TODO: Add argument vector<mutation>& M to be modified. Add mutation only if it may be added
-    // according to the rule above.
-  mutation draw_new_mut()
+  draw_new_mut(vector<mutation>& M)
+
+  // draw a new mutation and introduce it at an appropriately drawn random position x (accounting
+    // for genomic element types); a non-neutral mutation at position x is only allowed if no other
+    // non-neutral mutation – except one identical in state with the one to be introduced – is
+    // present at x.
+  // M is a vector of mutations to be modified such as to include the new mutation, if applicable
+
   {
     int g = gsl_ran_discrete(rng, LT_M); // draw genomic element according to weights given by
       // length of element relative to the sum of lenghts of all elements
@@ -441,12 +440,39 @@ public:
     // position of new mutation, uniformly chosen over the length of the genomic element
     int x = operator[](g).s + gsl_rng_uniform_int(rng, operator[](g).e - operator[](g).s + 1);
 
-    // TODO: Introduce register with positions at which there is a non-neutral *segregating*
-      // mutation. Check against this register before introducing a new mutation.
-
     float s = mut_type.draw_s(); // selection coefficient
 
-    return mutation(mut_type_id, x, s); // mutation type, position, selection coefficient
+    map<int,vector<double>>::iterator sm_it = seg_nonneutr_mut.find(x);
+
+    if (sm_it == seg_nonneutr_mut.end()) // if there is no non-neutral mutation segregating at
+      // position x
+      {
+        // the new mutation can be added without restriction
+
+        M.push_back(mutation(mut_type_id, x, s));
+      }
+    else // there is a non-neutral mutation segregating at position x
+      {
+        if (mut_type.p[0] == 0.0) // the mutation-type of the mutation to be introduced is neutral
+          // in the reference environment (and, hence, in the entire population)
+          {
+            // the new neutral mutation can be added
+
+            M.push_back(mutation(mut_type_id, x, s));
+          }
+        if (mut_type.t == (int) sm_it->second[0] && s == sm_it->second[1]) // the mutation to be
+          // introduced is identical in state (in terms of mutation-type and selection coefficient
+          // in the reference environment) with the one present at position x; this is a recurrent
+          // mutation to the same allele
+          {
+
+            // the mutation is permitted
+
+            M.push_back(mutation(mut_type_id, x, s));
+          }
+      } // end of there is a non-neutral mutation segregating at position x
+
+    // OLD: return mutation(mut_type_id, x, s); // mutation type, position, selection coefficient
 
   } // end of method draw_new_mut()
 
@@ -468,17 +494,22 @@ public:
         int j = gsl_ran_discrete(rng, LT_R);
 
         if (j == 0)
-          { x = gsl_rng_uniform_int(rng,rec_x[j]); }
+          {
+            x = gsl_rng_uniform_int(rng, rec_x[j]);
+          }
         else
-          { x = rec_x[j-1] + gsl_rng_uniform_int(rng,rec_x[j]-rec_x[j-1]); }
+          {
+            x = rec_x[j - 1] + gsl_rng_uniform_int(rng, rec_x[j] - rec_x[j - 1]);
+          }
 
         r.push_back(x);
 
         if (gsl_rng_uniform(rng) < G_f) // recombination results in gene conversion
           {
-            int x2 = x+gsl_ran_geometric(rng,1.0/G_l);
+            int x2 = x + gsl_ran_geometric(rng, 1.0/G_l);
             r.push_back(x2);
           } // end of recombination results in gene conversion
+
       } // end of iterating over recombination events
 
     return r;
@@ -1800,7 +1831,7 @@ public:
 
   } // end of execute_event() method
 
-
+  // TODO: GO ON HERE (3), understanding what is done and adjusting to new mutation scheme.
   void introduce_mutation(introduced_mutation M, chromosome& chr) 
   {
     // introduce user-defined mutation
@@ -1861,7 +1892,7 @@ public:
     // erase(iterator first, iterator last): removes the range
           // [first, last) of elements
     // remove *consecutive* duplicate mutations
-    // TODO: GO ON HERE (3), understanding what is done.
+
 	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end()); // operator ==: same position, same
       // mutation type, and same selection coefficient (defined for comparison of mutation objects)
 	(*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
@@ -2108,18 +2139,18 @@ public:
   void crossover_mutation(int i, int c, int j, int P1, int P2, chromosome& chr)
   {
     // child genome c in subpopulation i is assigned outcome of cross-overs at breakpoints r 
-    // between parent genomes p1 and p2 from subpopulation j and new mutations are added
+    // between parent genomes P1 and P2 from subpopulation j and new mutations are added
     // 
     // example R = (r1, r2)
     // 
-    // mutations (      x < r1) assigned from p1
-    // mutations (r1 <= x < r2) assigned from p2
-    // mutations (r2 <= x     ) assigned from p1
+    // mutations (      x < r1) assigned from P1
+    // mutations (r1 <= x < r2) assigned from P2
+    // mutations (r2 <= x     ) assigned from P1
     //
     // p1 and p2 are swapped in half of the cases to assure random assortement
 
     if (gsl_rng_uniform_int(rng, 2) == 0)
-      { int swap = P1; P1 = P2; P2 = swap; } // swap p1 and p2
+      { int swap = P1; P1 = P2; P2 = swap; } // swap P1 and P2
 
     find(i)->second.G_child[c].clear();
 
@@ -2127,82 +2158,135 @@ public:
 
     vector<mutation> M;
     int n_mut = chr.draw_n_mut(); // draw random number of mutations
-    // introduce n_mut new mutations
+    // introduce n_mut new mutations according to genomic elements and relative importance of
+      // respective mutation-types
     for (int k = 0; k < n_mut; k++)
       {
-        // TODO: GO ON HERE (4). Tidy up and understand details.
-        M.push_back(chr.draw_new_mut());
-        // Change to
-        // chr.draw_new_mut(M);
+        // OLD: M.push_back(chr.draw_new_mut());
+        // draw a new mutation and modify M such as to include the new mutation; note that the
+          // mutation will not be introduced if it were to choose a position at which there already
+          // is a segregating non-neutral mutation, unless that segregating non-neutral mutation is
+          // identical in state with the new mutation (w.r.t. the reference environment)
+        chr.draw_new_mut(M);
       }
     sort(M.begin(), M.end()); // sort by physical position
     
     // create vector with recombination breakpoints
 
     vector<int> R = chr.draw_breakpoints(); // breakpoints are physical positions
-    R.push_back(chr.L+1);
+    R.push_back(chr.L + 1);
     sort(R.begin(), R.end());
-    R.erase(unique(R.begin(),R.end()),R.end());
+    R.erase(unique(R.begin(), R.end()), R.end());
     
-    vector<mutation>::iterator p1 = find(j)->second.G_parent[P1].begin();
-    vector<mutation>::iterator p2 = find(j)->second.G_parent[P2].begin();
+    vector<mutation>::iterator p1 = find(j)->second.G_parent[P1].begin(); // pointing to the first
+      // mutation in parent genome P1
+    vector<mutation>::iterator p2 = find(j)->second.G_parent[P2].begin(); // ditto for parent
+      // genome P2
 
-    vector<mutation>::iterator p1_max = find(j)->second.G_parent[P1].end();
-    vector<mutation>::iterator p2_max = find(j)->second.G_parent[P2].end();
+    vector<mutation>::iterator p1_max = find(j)->second.G_parent[P1].end(); // pointing to the last
+      // mutation in parent genome P1
+    vector<mutation>::iterator p2_max = find(j)->second.G_parent[P2].end(); // ditto for parent
+      // genome P2
 
-    vector<mutation>::iterator m     = M.begin();
-    vector<mutation>::iterator m_max = M.end();
+    vector<mutation>::iterator m     = M.begin(); // pointing to the first mutation added above
+    vector<mutation>::iterator m_max = M.end(); // pointing to the last mutation added above
 
-    vector<mutation>::iterator p     = p1;
-    vector<mutation>::iterator p_max = p1_max;
+    vector<mutation>::iterator p     = p1; // pointing to the first mutation in parent genome P1;
+      // later updated to pointing to currently visited mutation in P1
+    vector<mutation>::iterator p_max = p1_max; // pointing to the last mutation in parent genome P1
 
-    int r = 0; int r_max  = R.size(); int n = 0; bool present;
+    int r = 0; // counter of visited recombination breakpoints
+    int r_max = R.size(); // total number of recombination breakpoints
+    int n = 0;
+    bool present;
 
-    while (r != r_max)
+    while (r != r_max) // while there are further recombination breakpoints
       {
-	while ((p != p_max && (*p).x < R[r]) || (m != m_max && (*m).x < R[r]))
-	  {
-	    while (p != p_max && (*p).x < R[r] && (m == m_max || (*p).x <= (*m).x))
-	      {
-		present = 0;
-		if (n != 0 && find(i)->second.G_child[c].back().x == (*p).x)
-		  {
-		    int k = n-1;
-		    while (present == 0 && k >= 0)
-		      {
-			if (find(i)->second.G_child[c][k] == (*p)) { present = 1; }
-			k--;
-		      }
-		  }
-		if (present == 0) { find(i)->second.G_child[c].push_back(*p); n++; }
-		p++;
-	      }
-	    while (m != m_max && (*m).x < R[r] && (p == p_max || (*m).x <= (*p).x))
-	      {
-	    	present = 0;
-		if (n != 0 && find(i)->second.G_child[c].back().x == (*m).x)
-		  {
-		    int k = n-1;
-		    while (present == 0 && k >= 0)
-		      {
-			if (find(i)->second.G_child[c][k] == (*m)) { present = 1; }
-			k--;
-		      }
-		  }
-		if (present == 0) { find(i)->second.G_child[c].push_back(*m); n++; }
-		m++;
-	      }
-	  }
+        while ((p != p_max && (*p).x < R[r]) || (m != m_max && (*m).x < R[r])) // while there are
+          // previously existing or new mutations prior to the current recombination breakpoint
+          {
+            while (p != p_max && (*p).x < R[r] && (m == m_max || (*p).x <= (*m).x)) // while there
+              // are previously existing mutations prior to the current recombination breakpoint
+              // and (all new mutations have been visited or the position of the currently
+              // visited previous mutation is not larger than the one of the current new mutation)
+              {
+                present = 0;
+                if (n != 0 && find(i)->second.G_child[c].back().x == (*p).x) // if "n != 0" and the position of the last mutation in child genome c is identical with the position of the currently visited parental mutation
+                  {
+                    int k = n - 1;
+                    while (present == 0 && k >= 0) // while currently visited parental mutation
+                      // is not present in the child genome and there are further positions to be
+                      // checked
+                      {
+                        if (find(i)->second.G_child[c][k] == (*p)) // if the currently visited
+                          // parental mutation is present at position k in child c
+                          {
+                            present = 1;
+                          }
+                        k--;
+                      } // end of while currently visited parental mutation is not present in the
+                        // child genome and there are further positions to be checked
+                  } // end of if "n != 0" and the position of the last mutation in child genome c
+                    // is identical with the position of the currently visited parental mutation
 
-	// swap parents
+                if (present == 0) // if currently visited mutation is not present in child genome
+                  // c, add it to c
+                  {
+                    find(i)->second.G_child[c].push_back(*p);
+                    n++;
+                  }
+                p++; // increase pointer to parental mutation
+              } // there are no more previously existing mutations prior to the current
+                // recombination breakpoint or all new mutations have been visited or the position
+                // of the currently visited previous mutation is not larger than the one of the
+                // current new mutation
+            while (m != m_max && (*m).x < R[r] && (p == p_max || (*m).x <= (*p).x)) // while there
+              // are new mutations prior to the current recombination breakpoint and (all
+              // previously existing mutations have been visited or the position of the currently
+              // visited new mutation is not larger than the one of the current previously existing
+              // mutation
+              {
+                present = 0;
+                if (n != 0 && find(i)->second.G_child[c].back().x == (*m).x) // if "n != 0" and the
+                  // position of the last mutation in child genome c is identical with the position
+                  // of the currently visited new mutation
+                  {
+                    int k = n - 1;
+                    while (present == 0 && k >= 0) // while currently visited new mutation
+                      // is not present in the child genome and there are further positions to be
+                      // checked
+                      {
+                        if (find(i)->second.G_child[c][k] == (*m))
+                          {
+                            present = 1;
+                          }
+                        k--;
+                      }
+                  }
+                if (present == 0)
+                  {
+                    find(i)->second.G_child[c].push_back(*m);
+                    n++;
+                  }
+                m++;
+              }
+          } // end of while there are previously existing or new mutations prior to the current
+            // recombination breakpoint
 
-	p1 = p2; p1_max = p2_max; p2 = p; p2_max = p_max; p = p1; p_max = p1_max; 
+        // swap parents
 
-	while (p != p_max && (*p).x < R[r]) { p++; }
+        p1 = p2; p1_max = p2_max;
+        p2 = p; p2_max = p_max;
+        p = p1; p_max = p1_max;
 
-	r++;
-      }
-  }
+        while (p != p_max && (*p).x < R[r])
+          { p++; }
+
+        r++;
+
+      } // end of while there are further recombination breakpoints
+
+  } // end of method crossover_mutation()
 
 
   void swap_generations(int g, chromosome& chr, char& fi, map<int,environment>& env)
@@ -2274,13 +2358,14 @@ public:
             // recall that genome G is a vector of mutations
 
             Substitutions.push_back(substitution(G[i], g));
-            // TODO: GO ON HERE
+
             // remove from register of segregating non-neutral mutations
             int check = chr.seg_nonneutr_mut.erase(G[i].x);
             if (check != 1 && G[i].s != 0.0) // if no segregating non-neutral mutation has been
               // removed and G[i] is a non-neutral mutation
               {
-                cerr << ""
+                cerr << "ERROR (remove_fixed): non-neutral substitution not found in seg_nonneutr_mut" << endl;
+                exit(1);
               }
           } // end of for each fixed mutation
 
