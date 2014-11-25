@@ -14,10 +14,11 @@
 11/17/2014
 ==========
 
-- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism::print() [DONE], then polymorphism::print_noi() [DONE]. Then work on population::print_all() [two versions, DONE], population::print_sample() [DONE], population::print_sample_ms() [DONE], population::add_mut() [DONE], population::track_mutations()[DONE], population::find_mut() [called by population::print_all() and population::pring_sample(), DONE]
+- Started working on output of subpopulation-specific prevalences. First, adjust polymorphism::print() [DONE], then polymorphism::print_noi() [DONE]. Then work on population::print_all() [two versions, DONE], population::print_sample() [DONE], population::print_sample_ms() [DONE], population::add_mut() [DONE], population::track_mutations()[DONE], population::find_mut() [called by population::print_all() and population::print_sample(), DONE]
 - REMARK: The method polymorphism::print_noi() is used to print subpopulation-specific prevalences, yet in its current implementation, it gives dominance and selection coefficients valid for the reference environment, not for the respective subpopulation. This could be changed later, if needed.
 - Adjusting population::track_mutations() to account for changes in class polymorphism [DONE]
 - Improved formatting of population::remove_fixed(), polymorphic(), and fixed() [DONE]. REMARK: I have not fully checked these methods, but merely focussed on improving the formatting (indentation)
 - Work on chromosome::draw_new_mut() [DONE], population::crossover_mutation() [DONE, but recombination not checked in detail], and population::introduce_mutation() [PENDING]. For the latter, adjust to the new scheme of replacing previously existing non-neutral mutations at a given position x.
-- Proceed on l. 1936*/714/2800.
+- Proceed on l. 1940*/431/113.
 - TODO: Handle occurrence of multiple *neutral* mutations at the very same position in a given haploid genome. This should be disallowed; preexisting mutations should be overridden. Concerned methods are population::draw_new_mut() [PENDING] and population::introduce_mutation() [PENDING];
+- TODO: Do not forget to add newly introduced non-neutral mutations to chromosome::seg_nonneut_mut after introducing them

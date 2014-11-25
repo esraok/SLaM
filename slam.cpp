@@ -1921,58 +1921,26 @@ public:
         // if a non-neutral mutation is segregating at position m.x
         if (snnm_it != chr.seg_nonneutr_mut.end())
           {
-            // if the preexisting segregating non-neutral mutation is identical in state with
+            // if the preexisting segregating non-neutral mutation is not identical in state with
               // the proposed mutation M (w.r.t. mutation-type and selection coefficient)
-            if (snnm_it->second[0] == m.t && snnm_it->second[1] == m.s)
-              {
-                // introduce the desired homozygote, but make sure previously existing mutations
-                  // at position m.x are removed from both haploid genomes
-              }
-            else // the preexisting segregating non-neutral mutation is not identical in state with
-              // the proposed mutation M
+            if (snnm_it->second[0] != m.t || snnm_it->second[1] != m.s)
               {
                 // clear the entire population from the preexisting non-neutral mutation at
                   // position m.x
-                // GO ON HERE NEXT.
-                /*// start of part to be put into new method population::remove_seg_mut()
-                vector<mutation>::iterator g;
-                vector<mutation>::iterator g_max;
+                remove_seg_mut(m.x);
+              } // no preexisting segregating non-neutral mutation that is not also identical in
+                // state with the mutation to be introduced is segregating in the entire population
+          } // no preexisting non-neutral mutation other than one identical in state with m is
+              // segregating in the entire population
 
-                // iterate over all subpopulations
-                for (it = begin(); it != end(); it++)
-                  {
-                    // iterate over all child genomes in current subpopulation
-                    for (int j = 0; j < 2*it->second.N; j++)
-                      {
-                        g = it->second.G_child[j].begin();
-                        g_max = it->second.G_child[j].end();
+        // introduce the desired homozygote, but ensure that previously existing mutations
+          // (neutral ones and those identical in state with the one to be introduced) at position
+          // m.x are removed from both haploid genomes
 
-                        // advance over all mutations in child genome j
-                        while (g != g_max)
-                          {
-                            // if currently visited mutation is located at position x
-                          if ()
-                            {
-                              // remove currently visited mutation and point iterator to next
-                                // following mutation
-                              g = it->second.G_child[j].erase(g);
-                            }
-                          else // currently visited mutation is not located at position x
-                            {
-                              // increase iterator
-                              g++;
-                            }
-                          } // end of while there are mutations to be checked
-                      } // end of for each child genome
-                  } // end of for each subpopulation
-                  */// end of part to be put into new method population::remove_seg_mut()
-              } // end of if the two mutations are not identical in state
-          }
-        else // no non-neutral mutation is segregating at position m.x
-          {
-            // introduce the desired homozygote, but make sure previously existing neutral
-              // mutations at position m.x are removed from both haploid genomes
-          }
+        // TODO: GO ON HERE NEXT.
+        // find range of mutations present at position m.x in genomes g1 and g2 and remove them
+
+        // add new mutation m to both genomes
         (*g1).push_back(m);
         (*g2).push_back(m);
 
@@ -1993,17 +1961,20 @@ public:
         (*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
       } // end of for each homozygote mutant individual to be created
 
-    // introduce heterozygotes
+    // introduce heterozygotes, starting to count after homozygotes
 
-    for (int j=M.nAA; j<M.nAA+M.nAa; j++) 
+    for (int j = M.nAA; j<M.nAA+M.nAa; j++)
       { 
 	genome *g1 = &find(M.i)->second.G_child[2*j];
 	(*g1).push_back(m);
 	sort((*g1).begin(),(*g1).end()); // sorting by physical position
     // remove duplicate mutations
 	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end());
-      }
-  }
+      } // end of for each heterozygote mutant individual to be created
+
+      // TODO: add currently introduced mutation to chr.seg_nonneut_mut
+
+  } // end of method introduce_mutation()
 
 
   void track_mutations(int g, vector<int>& TM, vector<partial_sweep>& PS, chromosome& chr)
@@ -2812,8 +2783,39 @@ public:
   void remove_seg_mut(int x)
   {
 
-  // removes mutations segregating at position x from the entire population
+    // removes mutations segregating at position x from the entire population
+    vector<mutation>::iterator g;
 
+    // iterate over all subpopulations
+    for (it = begin(); it != end(); it++)
+      {
+        // iterate over all child genomes in current subpopulation
+        for (int j = 0; j < 2*it->second.N; j++)
+          {
+            g = it->second.G_child[j].begin();
+            int found = 0;
+
+            // advance over all mutations in child genome j
+            while (g != it->second.G_child[j].end() && found == 0) // in the new mutation scheme,
+              // there may be at most one mutation at any given position; once one mutation at
+              // position m.x has been found, all have been found
+              {
+                // if currently visited mutation is located at position x
+                if ((*g).x == m.x)
+                  {
+                    // remove currently visited mutation and point iterator to next
+                    // following mutation
+                    g = it->second.G_child[j].erase(g);
+                    found = 1;
+                  }
+                else // currently visited mutation is not located at position x
+                  {
+                    // increase iterator
+                    g++;
+                  }
+              } // end of while there are mutations to be checked
+          } // end of for each child genome
+      } // end of for each subpopulation
   } // end of method remove_seg_mut
 
 }; // end of class 'population'
