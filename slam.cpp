@@ -721,7 +721,8 @@ genome fixed(genome& G1, genome& G2)
         { g1++; }
 
       // advance g2 while g1.x < g2.x
-      while (g1 != g1_max && g2 != g2_max && (*g2).x < (*g1).x) { g2++; }
+      while (g1 != g1_max && g2 != g2_max && (*g2).x < (*g1).x)
+        { g2++; }
 	   
       // identify shared mutations at positions x and add to G
       if (g2 != g2_max && g1 != g1_max && (*g2).x == (*g1).x)
@@ -1911,9 +1912,67 @@ public:
         // append the new mutation to the end of the genotypes
 
         // GO ON HERE NEXT
-        // TODO: test against chr.seg_nonneutr_mut and, if needed, clear entire population from
-          // preexisting non-neutral mutation(s) at position m.x, unless the existing non-neutral mutation and the one to be introduced are identical in state (in terms of mutation-type and selection coefficient in the reference environment); if the latter is the case, act accordingly; clearing literally means iterating over all child genomes in all subpopulations and clearing genomes
-          // clearing each of them from
+        // TODO: test against chr.seg_nonneutr_mut and clear entire population from preexisting non-neutral mutation(s) at position m.x, unless the existing non-neutral mutation and the one to be introduced are identical in state (in terms of mutation-type and selection coefficient in the reference environment); if the latter is the case, the desired genotype is introduced; througout, it is made sure that a given haploid genome has only one mutation at any given position x; previously existing mutations at x are overridden;
+
+          // clearing literally means iterating over all child genomes in all subpopulations and clearing genomes
+
+        map<int,vector<double>>::iterator snnm_it = chr.seg_nonneutr_mut.find(m.x);
+
+        // if a non-neutral mutation is segregating at position m.x
+        if (snnm_it != chr.seg_nonneutr_mut.end())
+          {
+            // if the preexisting segregating non-neutral mutation is identical in state with
+              // the proposed mutation M (w.r.t. mutation-type and selection coefficient)
+            if (snnm_it->second[0] == m.t && snnm_it->second[1] == m.s)
+              {
+                // introduce the desired homozygote, but make sure previously existing mutations
+                  // at position m.x are removed from both haploid genomes
+              }
+            else // the preexisting segregating non-neutral mutation is not identical in state with
+              // the proposed mutation M
+              {
+                // clear the entire population from the preexisting non-neutral mutation at
+                  // position m.x
+                // GO ON HERE NEXT.
+                /*// start of part to be put into new method population::remove_seg_mut()
+                vector<mutation>::iterator g;
+                vector<mutation>::iterator g_max;
+
+                // iterate over all subpopulations
+                for (it = begin(); it != end(); it++)
+                  {
+                    // iterate over all child genomes in current subpopulation
+                    for (int j = 0; j < 2*it->second.N; j++)
+                      {
+                        g = it->second.G_child[j].begin();
+                        g_max = it->second.G_child[j].end();
+
+                        // advance over all mutations in child genome j
+                        while (g != g_max)
+                          {
+                            // if currently visited mutation is located at position x
+                          if ()
+                            {
+                              // remove currently visited mutation and point iterator to next
+                                // following mutation
+                              g = it->second.G_child[j].erase(g);
+                            }
+                          else // currently visited mutation is not located at position x
+                            {
+                              // increase iterator
+                              g++;
+                            }
+                          } // end of while there are mutations to be checked
+                      } // end of for each child genome
+                  } // end of for each subpopulation
+                  */// end of part to be put into new method population::remove_seg_mut()
+              } // end of if the two mutations are not identical in state
+          }
+        else // no non-neutral mutation is segregating at position m.x
+          {
+            // introduce the desired homozygote, but make sure previously existing neutral
+              // mutations at position m.x are removed from both haploid genomes
+          }
         (*g1).push_back(m);
         (*g2).push_back(m);
 
@@ -2749,6 +2808,13 @@ public:
           // here, we initalise the polymorphism with just one count in subpopulation spid
       }
   } // end of add_mut() method
+
+  void remove_seg_mut(int x)
+  {
+
+  // removes mutations segregating at position x from the entire population
+
+  } // end of method remove_seg_mut
 
 }; // end of class 'population'
 
