@@ -424,7 +424,9 @@ public:
   // draw a new mutation and introduce it at an appropriately drawn random position x (accounting
     // for genomic element types); a non-neutral mutation at position x is only allowed if no other
     // non-neutral mutation – except one identical in state with the one to be introduced – is
-    // present at x.
+    // segregating at x in the entire population. Moreover, in any haploid genome, no more than one
+    // mutation can exist at any given position. The new mutation will replace possible preexisting
+    // mutations at that position.
   // M is a vector of mutations to be modified such as to include the new mutation, if applicable
 
   {
@@ -447,7 +449,7 @@ public:
     if (sm_it == seg_nonneutr_mut.end()) // if there is no non-neutral mutation segregating at
       // position x
       {
-        // the new mutation can be added without restriction
+        // the new mutation can be added
 
         M.push_back(mutation(mut_type_id, x, s));
       }
@@ -2359,7 +2361,7 @@ public:
     vector<int> R = chr.draw_breakpoints(); // breakpoints are physical positions
     R.push_back(chr.L + 1);
     sort(R.begin(), R.end());
-    R.erase(unique(R.begin(), R.end()), R.end());
+    R.erase(unique(R.begin(), R.end()), R.end()); // erase consequtive duplicate breakpoints
     
     vector<mutation>::iterator p1 = find(j)->second.G_parent[P1].begin(); // pointing to the first
       // mutation in parent genome P1
@@ -2380,8 +2382,13 @@ public:
 
     int r = 0; // counter of visited recombination breakpoints
     int r_max = R.size(); // total number of recombination breakpoints
-    int n = 0;
+    int n = 0; // number of mutations (those transmitted from a parent or de-novo ones) added
+      // to child c
     bool present;
+
+    // TODO: GO ON HERE NEXT. Instead of only disallowing duplicate mutations that are identical in
+      // type and selection coefficient, override any previously existing mutation at a position
+      // at which a new mutation wants to be inserted
 
     while (r != r_max) // while there are further recombination breakpoints
       {
@@ -2462,6 +2469,7 @@ public:
         p2 = p; p2_max = p_max;
         p = p1; p_max = p1_max;
 
+        // shift iterator to current breakpoint
         while (p != p_max && (*p).x < R[r])
           { p++; }
 
