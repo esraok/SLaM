@@ -1832,21 +1832,16 @@ public:
 
   } // end of execute_event() method
 
-  // TODO: GO ON HERE (3), understanding what is done and adjusting to new mutation scheme.
+
   void introduce_mutation(introduced_mutation M, chromosome& chr) 
   {
-    // introduce user-defined mutation
+    // introduce user-defined mutation, and handle potential conflicts arising from the fact
+      // that no more than one non-neutral mutation is allowed to segregate at any given position
+      // in the entire population, and that only one mutation may be present at any given position
+      // in any haploid genome
 
     // M is the mutation to be introduced (class introduced_mutation inherits from mutation)
     // chr is the chromosome
-
-    // TODO: If a non-neutral mutation is to be introduced at a position at which there already
-      // is a non-neutral mutation, the preexisting mutation must be reassigned a neutral type
-      // unless the mutation to be introduced and the preexisting mutation are identical in state
-      // (i.e. they are of the same mutation type and have identical selection coefficients).
-
-    // TODO: In addition to the rule above, do not allow more than one mutation at a given position
-      // in a given haploid genome.
 
     // some tests
 
@@ -1879,12 +1874,26 @@ public:
     // test: print all children
     // print_all(chr);
 
+    int n = find(M.i)->second.G_child.size()/2;
+    int ix_all[n], ix_hom[M.nAA], ix_het[M.nAa];
+
+    for (int i = 0; i < n; i++)
+      {
+        ix_all[i] = i;
+      }
+
     if (M.l == 'e') // if successive introduced mutations should be in linkage equilibrium
       {
-        // suffle genomes in subpopulation (*sp) to generate linkage equilibrium
+        // draw indices of individuals to be made homozygous and heterozygous carriers of the
+          // mutation to be introduced at random
+
+        // shuffle the individual's indices
+        std::random_suffle(std::begin(ix_all), std:end(ix_all));
+
+        // shuffle genomes in subpopulation (*sp) to generate linkage equilibrium
         // OLD:
         // std::random_shuffle((*sp).G_child.begin(), (*sp).G_child.end());
-        std::random_shuffle(find(M.i)->second.G_child.begin(), find(M.i)->second.G_child.end());
+        // std::random_shuffle(find(M.i)->second.G_child.begin(), find(M.i)->second.G_child.end());
 
       }
     else if (M.l != 'd')
@@ -1893,57 +1902,115 @@ public:
         exit(1);
       }
 
+    // assign first M.nAA indices to homozygotes, and successive M.nAa to heterozygotes
+    for (int i = 0; i < M.nAA; i++)
+      {
+        ix_hom[i] = ix_all[i];
+      }
+    for (int i = 0; i < M.nAa; i++)
+      {
+        ix_het[i] = ix_all[M.nAA + i];
+      }
+
     // test: print all children
     // print_all(chr);
-    
+
+    // test against chr.seg_nonneutr_mut and clear entire population from preexisting non-
+      // neutral mutation(s) at position m.x, unless the existing non-neutral mutation and the
+      // one to be introduced are identical in state (in terms of mutation-type and selection
+      // coefficient in the reference environment); if the latter is the case, the desired
+      // genotypes are introduced; througout, it is made sure that a given haploid genome has
+      // only one mutation at any given position x; previously existing mutations at x are
+      // overridden;
+
+    map<int,vector<double>>::iterator snnm_it = chr.seg_nonneutr_mut.find(m.x);
+
+    // if a non-neutral mutation is segregating at position m.x
+    if (snnm_it != chr.seg_nonneutr_mut.end())
+      {
+        // if the preexisting segregating non-neutral mutation is not identical in state with
+        // the proposed mutation M (w.r.t. mutation-type and selection coefficient)
+        if (snnm_it->second[0] != m.t || snnm_it->second[1] != m.s)
+          {
+            // clear the entire population from the preexisting non-neutral mutation at
+            // position m.x
+            remove_seg_mut(m.x);
+          } // no preexisting segregating non-neutral mutation that is not also identical in
+              // state with the mutation to be introduced is segregating in the entire population
+      } // no preexisting non-neutral mutation other than one identical in state with m is
+          // segregating in the entire population at position m.x
+
+    vector<mutation>::iteratore m_it;
+    int found;
+
     // introduce homozygotes
 
     for (int j = 0; j < M.nAA; j++) // for each homozygote mutant individual to be created
       {
         // recall: a genonme is a vector of mutations
 
-        // find subpopulation, then return two of its children
-        genome* g1 = &find(M.i)->second.G_child[2*j]; // recall: a diploid individual j is made up
-          // of haploid genomes 2*j and 2*j + 1; returns a pointer to child genome 2*j in
-          // subpopulation M.i
-        genome* g2 = &find(M.i)->second.G_child[2*j + 1]; // returns a pointer to child genome
-          // 2*j + 1 in subpopulation M.i
-
-        // append the new mutation to the end of the genotypes
-
-        // GO ON HERE NEXT
-        // TODO: test against chr.seg_nonneutr_mut and clear entire population from preexisting non-neutral mutation(s) at position m.x, unless the existing non-neutral mutation and the one to be introduced are identical in state (in terms of mutation-type and selection coefficient in the reference environment); if the latter is the case, the desired genotype is introduced; througout, it is made sure that a given haploid genome has only one mutation at any given position x; previously existing mutations at x are overridden;
-
-          // clearing literally means iterating over all child genomes in all subpopulations and clearing genomes
-
-        map<int,vector<double>>::iterator snnm_it = chr.seg_nonneutr_mut.find(m.x);
-
-        // if a non-neutral mutation is segregating at position m.x
-        if (snnm_it != chr.seg_nonneutr_mut.end())
-          {
-            // if the preexisting segregating non-neutral mutation is not identical in state with
-              // the proposed mutation M (w.r.t. mutation-type and selection coefficient)
-            if (snnm_it->second[0] != m.t || snnm_it->second[1] != m.s)
-              {
-                // clear the entire population from the preexisting non-neutral mutation at
-                  // position m.x
-                remove_seg_mut(m.x);
-              } // no preexisting segregating non-neutral mutation that is not also identical in
-                // state with the mutation to be introduced is segregating in the entire population
-          } // no preexisting non-neutral mutation other than one identical in state with m is
-              // segregating in the entire population
+        // find subpopulation, then return two of its child genomes
+        genome* g1 = &find(M.i)->second.G_child[2*ix_hom[j]]; // recall: a diploid individual k is
+          // made up of haploid genomes 2*k and 2*k + 1; returns a pointer to child genome 2*k in
+          // subpopulation M.i; here, k = ix_hom[j]
+        genome* g2 = &find(M.i)->second.G_child[2*ix_hom[j] + 1]; // returns a pointer to child
+          // genome 2*k + 1 in subpopulation M.i; here, k = ix_hom[j]
 
         // introduce the desired homozygote, but ensure that previously existing mutations
-          // (neutral ones and those identical in state with the one to be introduced) at position
+          // (neutral ones or those identical in state with the one to be introduced) at position
           // m.x are removed from both haploid genomes
 
-        // TODO: GO ON HERE NEXT.
-        // find range of mutations present at position m.x in genomes g1 and g2 and remove them
+        // find mutations present at position m.x in genomes g1 and g2 and remove them
+
+        // advance over all mutations in genome g1
+        m_it = (*g1).begin();
+        found = 0;
+        while (m_it != (*g1).end() && found == 0) // in the new mutation scheme, there may be at
+          // most one mutation at any given position in a haploid genome; once one mutation at
+          // position m.x has been found, all have been found
+          {
+            if ((*m_it).x == m.x)
+              {
+                // remove currently visited mutation and point iterator to next following mutation
+                m_it = (*g1).erase(m_it);
+                found = 1;
+              }
+            else // currently visited mutation is not located at position m.x
+              {
+                // increase iterator
+                m_it++;
+              }
+          } // all mutations in g1 visited or found the one at position m.x
+
+        // advance over all mutations in genome g2
+        m_it = (*g2).begin();
+        found = 0;
+        while (m_it != (*g2).end() && found == 0) // in the new mutation scheme, there may be at
+          // most one mutation at any given position in a haploid genome; once one mutation at
+          // position m.x has been found, all have been found
+          {
+            if ((*m_it).x == m.x)
+              {
+                // remove currently visited mutation and point iterator to next following mutation
+                m_it = (*g2).erase(m_it);
+                found = 1;
+              }
+            else // currently visited mutation is not located at position m.x
+              {
+                // increase iterator
+                m_it++;
+              }
+          } // all mutations in g2 visited or found the one at position m.x
 
         // add new mutation m to both genomes
         (*g1).push_back(m);
         (*g2).push_back(m);
 
+        // NEW: sorting genomes and removing duplicate mutations is no longer needed under the
+          // new mutation scheme, as it allows for at most one mutation at any given position
+          // in any haploid genome
+        /*
+        // OLD:
         // sort the genomes
         sort((*g1).begin(),(*g1).end()); // sorting according to physical position
         sort((*g2).begin(),(*g2).end());
@@ -1959,20 +2026,69 @@ public:
           // same mutation type, and same selection coefficient (defined for comparison of
           // instances of class mutation
         (*g2).erase(unique((*g2).begin(),(*g2).end()),(*g2).end());
+        */
+
       } // end of for each homozygote mutant individual to be created
 
     // introduce heterozygotes, starting to count after homozygotes
 
-    for (int j = M.nAA; j<M.nAA+M.nAa; j++)
+    for (int j = 0; j < M.nAa; j++) // for each heterozygote mutant individual to be created
       { 
-	genome *g1 = &find(M.i)->second.G_child[2*j];
-	(*g1).push_back(m);
-	sort((*g1).begin(),(*g1).end()); // sorting by physical position
-    // remove duplicate mutations
-	(*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end());
+        // find subpopulation, then return one of its child genomes (randomise over the two
+          // genomes in an individual)
+        int l = gsl_rng_uniform_int(rng, 2);
+        genome *g1 = &find(M.i)->second.G_child[2*ix_het[j] + l]; // recall: a diploid individual k
+          // is made up of haploid genomes 2*k and 2*k + 1; returns a pointer to child genome 2*k
+          // in subpopulation M.i; here, k = ix_hom[j]
+
+        // introduce the desired heterozygote, but ensure that previously existing mutations
+          // (neutral ones or those identical in state with the one to be introduced) at position
+          // m.x are removed from the haploid genome referred to by g1
+
+        // find mutations present at position m.x in genome g1 and remove them
+
+        // advance over all mutations in genome g1
+        m_it = (*g1).begin();
+        found = 0;
+        while (m_it != (*g1).end() && found == 0) // in the new mutation scheme, there may be at
+          // most one mutation at any given position in a haploid genome; once one mutation at
+          // position m.x. has been found, all have been found
+          {
+            if ((*m_it).x == m.x)
+              {
+                // remove currently visited mutation and point iterator to next following mutation
+                m_it = (*g1).erase(m_it);
+                found = 1;
+              }
+            else
+              {
+                // increase iterator
+                m_it++;
+              }
+          } // all mutations in g1 vistited or found the one at position m.x
+
+        // add new mutation m to genome g1
+        (*g1).push_back(m);
+
+        // NEW: sorting genomes and removing duplicate mutations is no longer needed under the
+          // new mutation scheme, as it allows for at most one mutation at any given position
+          // in any haploid genome
+        /*
+        // OLD:
+        // sort the genomes
+        sort((*g1).begin(),(*g1).end()); // sorting by physical position
+
+        // remove duplicate mutations
+        (*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end());
+         */
+
       } // end of for each heterozygote mutant individual to be created
 
-      // TODO: add currently introduced mutation to chr.seg_nonneut_mut
+      // add information about currently introduced mutation to chr.seg_nonneut_mut
+      vector<double> v;
+      v.push_back((double) m.t);
+      v.push_back(m.s);
+      chr.seg_nonneutr_mut.insert(pair<int,vector<double>>(m.x,v));
 
   } // end of method introduce_mutation()
 
@@ -2784,6 +2900,7 @@ public:
   {
 
     // removes mutations segregating at position x from the entire population
+
     vector<mutation>::iterator g;
 
     // iterate over all subpopulations
@@ -2797,8 +2914,8 @@ public:
 
             // advance over all mutations in child genome j
             while (g != it->second.G_child[j].end() && found == 0) // in the new mutation scheme,
-              // there may be at most one mutation at any given position; once one mutation at
-              // position m.x has been found, all have been found
+              // there may be at most one mutation at any given position in a haploid genome; once
+              // one mutation at position m.x has been found, all have been found
               {
                 // if currently visited mutation is located at position x
                 if ((*g).x == m.x)
@@ -2808,7 +2925,7 @@ public:
                     g = it->second.G_child[j].erase(g);
                     found = 1;
                   }
-                else // currently visited mutation is not located at position x
+                else // currently visited mutation is not located at position m.x
                   {
                     // increase iterator
                     g++;
