@@ -419,7 +419,9 @@ public:
   } // end of method draw_n_mut()
  
 
-  void draw_new_mut(vector<mutation>& M)
+  // TODO: GO ON HERE, adjusting the method to the fact that M is now a map and called M_map. Also,
+    // ensure that at most one mutation is present in M_map at any given position x at any time.
+  void draw_new_mut(map<int,mutation>& M_map)
 
   // draw a new mutation and introduce it at an appropriately drawn random position x (accounting
     // for genomic element types); a non-neutral mutation at position x is only allowed if no other
@@ -429,6 +431,10 @@ public:
     // mutations at that position.
 
   // M is a vector of mutations to be modified such as to include the new mutation, if applicable
+    // i.e. if the mutation is permitted
+
+  // if a mutation is already present in M at a position x where another one is about to be intro-
+    // duced, the previously existing mutation is removed
 
   {
     int g = gsl_ran_discrete(rng, LT_M); // draw genomic element according to weights given by
@@ -451,7 +457,10 @@ public:
     if (sm_it == seg_nonneutr_mut.end()) // if there is no non-neutral mutation segregating at
       // position x
       {
-        // the new mutation can be added
+        // the new mutation can be added, but only after other potential mutations at position x
+          // in M have been removed (there can be at most one present at any time)
+
+
         M.push_back(mutation(mut_type_id, x, s));
       }
     else // there is a non-neutral mutation segregating at position x
@@ -2031,7 +2040,7 @@ public:
         // erase(iterator first, iterator last): removes the range
           // [first, last) of elements
 
-        // remove *consecutive* duplicate mutations, where consequtive referst to physical position
+        // remove *consecutive* duplicate mutations, where consecutive referst to physical position
         (*g1).erase(unique((*g1).begin(),(*g1).end()),(*g1).end()); // operator ==: same position,
           // same mutation type, and same selection coefficient (defined for comparison of
           // instances of class mutation
@@ -2352,6 +2361,11 @@ public:
     // create vector with the mutations to be added
 
     vector<mutation> M; // storing de-novo mutations arising in child c
+    map<int,mutation> M_map; // helper construct to store de-novo mutations arising in child c,
+      // making it easier to guarantee that there is at most one mutation at any physical positin;
+      // the physical position is the key;
+    map<int,mutation>::iterator M_map_it;
+
     int n_mut = chr.draw_n_mut(); // draw random number of mutations
 
     // introduce n_mut new mutations according to genomic elements and relative importance of
@@ -2365,16 +2379,34 @@ public:
           // identical in state with the new mutation (mutation-type and identical selection
           // coefficient w.r.t. the reference environment); tis is ensured by the method
           // chromosome::draw_new_mut()
-        chr.draw_new_mut(M);
+        chr.draw_new_mut(M_map); // the method draw_new_mut() does not allow for more than
+          // one mutation of any type at a given physical position; older mutations are overridden
+          // by newer ones
       }
-    sort(M.begin(), M.end()); // sort by physical position
-    
+    // copy values from M_map to M, recalling that the values (mutations) in M_map are sorted by
+      // the key corresponding to the physical position
+
+    M_map_it = M_map.begin();
+    // for each element in M_map
+    while (M_map_it != M_map.end())
+      {
+        M.push_back(M_map_it->second());
+        M_map_it++;
+      } // end of for each element in M_map
+    // mutations in M are now sorted according to physical position
+
+    // OLD:
+    // sort(M.begin(), M.end()); // sort by physical position
+
+    // TODO: GO ON HERE, accounting for the fact that M contains at most one mutation at any given
+      // physical position x
+
     // create vector with recombination breakpoints
 
     vector<int> R = chr.draw_breakpoints(); // breakpoints are physical positions
     R.push_back(chr.L + 1);
     sort(R.begin(), R.end());
-    R.erase(unique(R.begin(), R.end()), R.end()); // erase consequtive duplicate breakpoints
+    R.erase(unique(R.begin(), R.end()), R.end()); // erase consecutive duplicate breakpoints
 
     // initialize various iterators
 
@@ -2466,7 +2498,7 @@ public:
                   // recombination breakpoint or all new mutations have been visited or the
                   // position of the currently visited previous mutation is not larger than the one
                   // of the current new mutation
-            // TODO: GO ON HERE NEXT.
+
             while (m != m_max && (*m).x < R[r] && (p == p_max || (*m).x <= (*p).x)) // while there
               // are new mutations prior to the current recombination breakpoint and (all
               // previously existing mutations have been visited or the position of the currently
@@ -2498,6 +2530,7 @@ public:
                           {
                             present = 1;
                             find(i)->second.G_child[c][k] = (*m);
+                            // as we just replace a mutation, we do not need to increase n
                           }
                         // decrease iterator, as we want to check the preceding mutation, added
                           // to child genome c in a previous step

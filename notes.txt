@@ -19,6 +19,6 @@
 - Adjusting population::track_mutations() to account for changes in class polymorphism [DONE]
 - Improved formatting of population::remove_fixed(), polymorphic(), and fixed() [DONE]. REMARK: I have not fully checked these methods, but merely focussed on improving the formatting (indentation)
 - Work on chromosome::draw_new_mut() [DONE], population::crossover_mutation() [DONE, but recombination not checked in detail], and population::introduce_mutation() [PENDING]. For the latter, adjust to the new scheme of replacing previously existing non-neutral mutations at a given position x.
-- Proceed on l. 99/2446*/2491. Verify algorithm.
+- Proceed on l. 420*/2374/2477. Verify algorithm.
 - TODO: Handle occurrence of multiple *neutral* mutations at the very same position in a given haploid genome. This should be disallowed; preexisting mutations should be overridden. Concerned methods are population::draw_new_mut() [PENDING] and population::introduce_mutation() [DONE];
 - TODO: Do not forget to add newly introduced non-neutral mutations to chromosome::seg_nonneut_mut() after introducing them;
