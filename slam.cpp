@@ -169,7 +169,7 @@ public:
       string options = "PNMSERFAT";
       if (options.find(t) == string::npos)
         {
-          cerr << "ERROR (initialize): invalid event type \"" << t;
+          cerr << "ERROR (event::constructor): invalid event type \"" << t;
           for (int i = 0; i < np; i++)
             { cerr << " " << s[i]; }
           cerr << "\"" << endl;
@@ -209,11 +209,11 @@ public:
 
     if (s.find(d) == string::npos)
       {
-        cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1);
+        cerr << "ERROR (mutation_type::constructor): invalid mutation type parameters" << endl; exit(1);
       }
     if (p.size() == 0)
       {
-        cerr << "ERROR (initialize): invalid mutation type parameters" << endl; exit(1);
+        cerr << "ERROR (mutation_type::constructor): invalid mutation type parameters" << endl; exit(1);
       }
   } // end of constructor
 
@@ -307,7 +307,7 @@ public:
   vector<int>                   rec_x; // vector of end points of strata of a given recomb. rate
   vector<double>                rec_r; // vector of recombination rates for each stratum
 
-  map<int,vector<double>>       seg_nonneutr_mut; // storing the mutation-type id and selection
+  map<int,vector<float>>       seg_nonneutr_mut; // storing the mutation-type id and selection
     // coefficient of all non-neutral mutations that are segregating in the entire population, the
     // key being their physical position
 
@@ -325,17 +325,17 @@ public:
   {
     if (size() == 0) // if there are no genomic elements (initialisation must have failed)
       {
-        cerr << "ERROR (initialize): empty chromosome" << endl;
+        cerr << "ERROR (chromosome::initialize_rng): empty chromosome" << endl;
         exit(1);
       }
     if (rec_r.size() == 0) // if there are no recombination rates (initialisation must have failed)
       {
-        cerr << "ERROR (initialize): recombination rate not specified" << endl;
+        cerr << "ERROR (chromosome::initialize_rng): recombination rate not specified" << endl;
         exit(1);
       }
     if (!(M >= 0)) // initially, M is assigned the per-base pair recombination rate
       {
-        cerr << "ERROR (initialize): invalid mutation rate" << endl;
+        cerr << "ERROR (chromosome::initialize_rng): invalid mutation rate" << endl;
         exit(1);
       }
 
@@ -350,7 +350,7 @@ public:
           // the second 'i' is the identifier of the genomic element; if there are 0 genomic
           // element types with identifier i for the genomic element i
           {
-            cerr << "ERROR (initialize): genomic element type " << operator[](i).i << " not defined" << endl;
+            cerr << "ERROR (chromosome::initialize_rng): genomic element type " << operator[](i).i << " not defined" << endl;
             exit(1);
           }
       } // end of for each genomic element
@@ -365,7 +365,7 @@ public:
           {
             if (mutation_types.count(it->second.m[j]) == 0)
               {
-                cerr << "ERROR (initialize): mutation type " << it->second.m[j] << " not defined" << endl;
+                cerr << "ERROR (chromosome::initialize_rng): mutation type " << it->second.m[j] << " not defined" << endl;
                 exit(1);
               }
           }
@@ -435,7 +435,8 @@ public:
   {
     int g = gsl_ran_discrete(rng, LT_M); // draw genomic element according to weights given by
       // length of element relative to the sum of lenghts of all elements
-    genomic_element_type ge_type = genomic_element_types.find(operator[](g).i)->second; // get the genomic element type of the genomic element g
+    genomic_element_type ge_type = genomic_element_types.find(operator[](g).i)->second; // get the
+      // genomic element type of the genomic element g
 
     int mut_type_id = ge_type.draw_mutation_type(); // drawing mutation type id according to
       // relative weight of that type among all types allowed in genomic element type ge_type
@@ -447,7 +448,9 @@ public:
 
     float s = mut_type.draw_s(); // selection coefficient
 
-    // find potentially segregating non-neutral mutation at position x and point iterator to it
+    // find potentially segregating non-neutral mutation at position x and point iterator to it;
+      // update chromosome::seg_nonneutr_mut, which records the segregating non-neutral mutations
+
     map<int,vector<double>>::iterator sm_it = seg_nonneutr_mut.find(x);
 
     if (sm_it == seg_nonneutr_mut.end()) // if there is no non-neutral mutation segregating at
@@ -457,6 +460,13 @@ public:
           // the same position x
         M_map.erase(x);
         M_map.insert(pair<int,mutation>(x,mutation(mut_type_id, x, s)));
+
+        seg_nonneutr_mut.erase(sm_it);
+        vector<float> v;
+        v.push_back((float) mut_type_id);
+        v.push_back(s);
+        seg_nonneutr_mut.insert(pair<int,vector<float>>(x,v));
+
       }
     else // there is a non-neutral mutation segregating at position x
       {
@@ -464,9 +474,20 @@ public:
           // in the reference environment (and, hence, in the entire population)
           {
             // the new neutral mutation can be added, potentially replacing a previously existing
-              // mutation at the same position x
+              // mutation at the same position x in M (not in the entire population though)
+
+            // check if the mutation really is neutral
+            if (s != 0.0)
+              {
+                cerr << "ERROR (chromosome::draw_new_mut): a supposedly neutral mutation has selection coefficient " << s << endl;
+                exit(1);
+              }
+
             M_map.erase(x);
             M_map.insert(pair<int,mutation>(x,mutation(mut_type_id, x, s)));
+
+            // chromosome::seg_nonneutr_mut does not need to be updated at this point
+
           }
         if (mut_type.t == (int) sm_it->second[0] && s == sm_it->second[1]) // the mutation to be
           // introduced is identical in state (in terms of mutation-type and selection coefficient
@@ -474,13 +495,16 @@ public:
           // mutation to the same allele
           {
             // the mutation is permitted, potentially replacing a previously existing mutation at
-              // the sampe position x
+              // the sampe position x in M
             M_map.erase(x);
             M_map.insert(pair<int,mutation>(x,mutation(mut_type_id, x, s)));
+
+            // chromosome::seg_nonneutr_mut does not need to be updated
+
           }
         // else: the new mutation is neither neutral nor identical in state with the segregating
           // non-neutral mutation; it cannot be introduced (which results in a downward-bias
-          // of the mutation rate that is accepted here)
+          // of the mutation rate that is accepted here as a lesser evil)
       } // end of there is a non-neutral mutation segregating at position x
 
     // OLD: return mutation(mut_type_id, x, s); // mutation type, position, selection coefficient
@@ -1252,11 +1276,11 @@ public:
             {
               if (ns_i > 1)
                 {
-                  cerr << "ERROR (compute fitness): encountered " << ns_i << " non-neutral mutations at position " << x << " in parental genome " << i << "." << endl;
+                  cerr << "ERROR (population::W [compute fitness]): encountered " << ns_i << " non-neutral mutations at position " << x << " in parental genome " << i << "." << endl;
                 }
               if (ns_j > 1)
                 {
-                  cerr << "ERROR (compute fitness): encountered " << ns_j << " non-neutral mutations at position " << x << " in parental genome " << j << "." << endl;
+                  cerr << "ERROR (population::W [compute fitness]): encountered " << ns_j << " non-neutral mutations at position " << x << " in parental genome " << j << "." << endl;
                 }
               exit(1);
             }
@@ -1540,12 +1564,12 @@ public:
 
     if (count(i) != 0) // counts number of occurrences of subpopulation with key equal to i
       {
-        cerr << "ERROR (add subpopulation): subpopulation p" << i << " already exists" << endl;
+        cerr << "ERROR (population::add_subpopulation): subpopulation p" << i << " already exists" << endl;
         exit(1);
       }
     if (N < 1)
       {
-        cerr << "ERROR (add subpopulation): subpopulation p" << i << " empty" << endl;
+        cerr << "ERROR (population::add_subpopulation): subpopulation p" << i << " empty" << endl;
         exit(1);
       }
 
@@ -1560,17 +1584,17 @@ public:
 
     if (count(i) != 0)
       {
-        cerr << "ERROR (add subpopulation): subpopulation p"<< i << " already exists" << endl;
+        cerr << "ERROR (population::add_subpopulation): subpopulation p"<< i << " already exists" << endl;
         exit(1);
       }
     if (count(j) == 0)
       {
-        cerr << "ERROR (add subpopulation): source subpopulation p"<< j << " does not exists" << endl;
+        cerr << "ERROR (population::add_subpopulation): source subpopulation p"<< j << " does not exists" << endl;
         exit(1);
       }
     if (N < 1)
       {
-        cerr << "ERROR (add subpopulation): subpopulation p"<< i << " empty" << endl;
+        cerr << "ERROR (population::add_subpopulation): subpopulation p"<< i << " empty" << endl;
         exit(1);
       }
 
@@ -1595,7 +1619,7 @@ public:
 
     if (count(i) == 0)
       {
-        cerr << "ERROR (change size): no subpopulation p"<< i << endl;
+        cerr << "ERROR (population::set_size): no subpopulation p"<< i << endl;
         exit(1);
       }
 
@@ -1621,12 +1645,12 @@ public:
  
     if (count(i) == 0)
       {
-        cerr << "ERROR (set selfing): no subpopulation p"<< i << endl;
+        cerr << "ERROR (population::set_selfing): no subpopulation p"<< i << endl;
         exit(1);
       }
     if (s < 0.0 || s > 1.0)
       {
-        cerr << "ERROR (set selfing): selfing fraction has to be within [0,1]" << endl;
+        cerr << "ERROR (population::set_selfing): selfing fraction has to be within [0,1]" << endl;
         exit(1);
       }
     find(i)->second.S = s;
@@ -1639,17 +1663,17 @@ public:
 
     if (count(i) == 0)
       {
-        cerr << "ERROR (set migration): no subpopulation p"<< i << endl;
+        cerr << "ERROR (population::set_migration): no subpopulation p"<< i << endl;
         exit(1);
       }
     if (count(j) == 0)
       {
-        cerr << "ERROR (set migration): no subpopulation p"<< j << endl;
+        cerr << "ERROR (population::set_migration): no subpopulation p"<< j << endl;
         exit(1);
       }
     if (m < 0.0 || m > 1.0)
       {
-        cerr << "ERROR (set migration): migration fraction has to be within [0,1]" << endl;
+        cerr << "ERROR (population::set_migration): migration fraction has to be within [0,1]" << endl;
         exit(1);
       }
 
@@ -1670,13 +1694,13 @@ public:
 
     if (count(i) == 0)
       {
-        cerr << "ERROR (assign environment): no subpopulation p"<< i << endl;
+        cerr << "ERROR (population::assign_environment): no subpopulation p"<< i << endl;
         exit(1);
       }
 
     if (envs.count(e) == 0)
       {
-        cerr << "ERROR (assign environment): no environment e"<< e << endl;
+        cerr << "ERROR (population::assign_environment): no environment e"<< e << endl;
         exit(1);
       }
 
@@ -1781,7 +1805,7 @@ public:
               }
             else // outstream not open
               {
-                cerr << "ERROR (output): could not open "<< E.s[0].c_str() << endl;
+                cerr << "ERROR (population::execute_event [output]): could not open "<< E.s[0].c_str() << endl;
                 exit(1);
               }
           } // end of if filename given
@@ -1858,16 +1882,16 @@ public:
 
     if (count(M.i) == 0)
       {
-        cerr << "ERROR (predetermined mutation): subpopulation "<< M.i << " does not exists" << endl;
+        cerr << "ERROR (population::introduce_mutation [predetermined mutation]): subpopulation "<< M.i << " does not exists" << endl;
         exit(1); }
     if (chr.mutation_types.count(M.t) == 0) 
       {
-        cerr << "ERROR (predetermined mutation): mutation type m"<< M.t << " has not been defined" << endl;
+        cerr << "ERROR (population::introduce_mutation [predetermined mutation]): mutation type m"<< M.t << " has not been defined" << endl;
         exit(1);
       }
     if (find(M.i)->second.G_child.size()/2 < M.nAA + M.nAa) 
       {
-        cerr << "ERROR (predetermined mutation): not enough individuals in subpopulation "<< M.i << endl; exit(1);
+        cerr << "ERROR (population::introduce_mutation [predetermined mutation]): not enough individuals in subpopulation "<< M.i << endl; exit(1);
       }
 
     mutation m;
@@ -1910,7 +1934,7 @@ public:
       }
     else if (M.l != 'd')
       {
-        cerr << "ERROR (predetermined mutation): linkage flag is "<< M.l << "instead of either e for linkage equilibrium or d for linkage disequilibrium among introduced mutations" << endl;
+        cerr << "ERROR (population::introduce_mutation [predetermined mutation]): linkage flag is "<< M.l << "instead of either e for linkage equilibrium or d for linkage disequilibrium among introduced mutations" << endl;
         exit(1);
       }
 
@@ -1946,8 +1970,9 @@ public:
         if (snnm_it->second[0] != m.t || snnm_it->second[1] != m.s)
           {
             // clear the entire population from the preexisting non-neutral mutation at
-              // position m.x
-            remove_seg_mut(m.x);
+              // position m.x and update the container recording all segregating non-neutral
+              // mutations
+            remove_seg_mut(m.x, chr);
           } // no preexisting segregating non-neutral mutation that is not also identical in
               // state with the mutation to be introduced is segregating in the entire population
       } // no preexisting non-neutral mutation other than one identical in state with m is
@@ -2104,11 +2129,14 @@ public:
 
       } // end of for each heterozygote mutant individual to be created
 
-      // add information about currently introduced mutation to chr.seg_nonneut_mut
-      vector<double> v;
-      v.push_back((double) m.t);
-      v.push_back(m.s);
-      chr.seg_nonneutr_mut.insert(pair<int,vector<double>>(m.x,v));
+    // add information about currently introduced mutation to chr.seg_nonneut_mut
+    if (M.nAA != 0 || M.nAa != 0)
+      {
+        vector<float> v;
+        v.push_back((float) m.t);
+        v.push_back(m.s);
+        chr.seg_nonneutr_mut.insert(pair<int,vector<float>>(m.x,v));
+      }
 
   } // end of method introduce_mutation()
 
@@ -2281,7 +2309,7 @@ public:
           {
             if (c >= find(i)->second.N)
               {
-                cerr << "ERROR (evolve subpopulation): too many migrants in subpopulation "<< i << endl;
+                cerr << "ERROR (population::evolve_subpopulation): too many migrants in subpopulation "<< i << endl;
                 exit(1);
               }
 
@@ -2303,7 +2331,7 @@ public:
               }
 
             // recombination, gene-conversion, mutation
-
+            // TODO: GO ON HERE (3)
             crossover_mutation(i, g1, it->first, 2*p1, 2*p1+1, chr);
             crossover_mutation(i, g2, it->first, 2*p2, 2*p2+1, chr);
 
@@ -2341,23 +2369,29 @@ public:
   void crossover_mutation(int i, int c, int j, int P1, int P2, chromosome& chr)
   {
     // child genome c in subpopulation i is assigned outcome of cross-overs at breakpoints r 
-    // between parent genomes P1 and P2 from subpopulation j and new mutations are added
-    // 
-    // example R = (r1, r2)
-    // 
-    // mutations (      x < r1) assigned from P1
-    // mutations (r1 <= x < r2) assigned from P2
-    // mutations (r2 <= x     ) assigned from P1
-    //
-    // p1 and p2 are swapped in half of the cases to assure random assortement
+      // between parent genomes P1 and P2 from subpopulation j and new mutations are added
+      //
+      // example R = (r1, r2)
+      //
+      // mutations (      x < r1) assigned from P1
+      // mutations (r1 <= x < r2) assigned from P2
+      // mutations (r2 <= x     ) assigned from P1
+      //
+      // p1 and p2 are swapped in half of the cases to assure random assortement
 
+    // swap parents with probability 0.5
     if (gsl_rng_uniform_int(rng, 2) == 0)
-      { int swap = P1; P1 = P2; P2 = swap; } // swap P1 and P2
+      {
+        int swap = P1;
+        P1 = P2;
+        P2 = swap;
+      }
 
     // clear child genome c in subpopulation i
     find(i)->second.G_child[c].clear();
 
-    // create vector with the mutations to be added
+    // create vector with the mutations to be added, as well as a map for efficient temporal
+      // accumulation of these mutations
 
     vector<mutation> M; // storing de-novo mutations arising in child c
     map<int,mutation> M_map; // helper construct to store de-novo mutations arising in child c,
@@ -2376,11 +2410,13 @@ public:
           // mutation will not be introduced if it were to choose a position at which there already
           // is a segregating non-neutral mutation, unless that segregating non-neutral mutation is
           // identical in state with the new mutation (mutation-type and identical selection
-          // coefficient w.r.t. the reference environment); tis is ensured by the method
-          // chromosome::draw_new_mut()
+          // coefficient w.r.t. the reference environment), or if the mutation to be introduced is
+          // neutral; this is ensured by the method chromosome::draw_new_mut(); if a non-neutral
+          // mutation is added that is not identical in state with a previous one at the respective
+          // physical position, then the record chromosome::seg_nonneutr_mut is updated
         chr.draw_new_mut(M_map); // the method draw_new_mut() does not allow for more than
-          // one mutation of any type at a given physical position; older mutations are overridden
-          // by newer ones
+          // one mutation of any type at a given physical position in M; older mutations are
+          // overridden by newer ones;
       }
 
     // copy values from M_map to M, recalling that the values (mutations) in M_map are sorted by
@@ -2398,9 +2434,6 @@ public:
 
     // OLD:
     // sort(M.begin(), M.end()); // sort by physical position
-
-    // TODO: GO ON HERE, accounting for the fact that M contains at most one mutation at any given
-      // physical position x
 
     // create vector with recombination breakpoints
 
@@ -2461,8 +2494,12 @@ public:
                     // NEW:
 
                     // there is at most one mutation at any given position x in M, P1, and P2;
-                      // hence, if .back() of child c is at position x, it is the only one
+                      // hence, if .back() of child c is at position x, it is the only one at
+                      // position x so far
                     present = 1;
+
+                    // the parental mutation referred to by p will not be allowed to make it into
+                      // child genome c
 
                     // OLD:
                     /*
@@ -2634,11 +2671,12 @@ public:
   {
     // find mutations that are fixed in all subpopulations and update the substitutions vector
 
-    // g is the generation; chr is the chromosome
+    // g    the generation
+    // chr  the chromosome
 
     genome G = begin()->second.G_child[0]; // copy the first genome in the first subpopulation
       // as a reference to which all other genomes across the entire population are compared; this
-      // reference will be updated genome by genome, and accumulate fixed mutations
+      // reference will be successively updated genome by genome, and accumulate fixed mutations
 
     for (it = begin(); it != end(); it++) // iterate over subpopulations
       {
@@ -2683,7 +2721,7 @@ public:
             if (check != 1 && G[i].s != 0.0) // if no segregating non-neutral mutation has been
               // removed and G[i] is a non-neutral mutation
               {
-                cerr << "ERROR (remove_fixed): non-neutral substitution not found in seg_nonneutr_mut" << endl;
+                cerr << "ERROR (population::remove_fixed): non-neutral substitution not found in seg_nonneutr_mut" << endl;
                 exit(1);
               }
           } // end of for each fixed mutation
@@ -2822,7 +2860,7 @@ public:
 
     if (count(i) == 0)
       {
-        cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl; exit(1);
+        cerr << "ERROR (population::print_sample): subpopulation p"<< i << " does not exists" << endl; exit(1);
       }
 
     vector<int> sample; // collecting indices of sampled genomes in subpopulation i
@@ -2881,7 +2919,7 @@ public:
 
     if (count(i) == 0)
     {
-      cerr << "ERROR (output): subpopulation p"<< i << " does not exists" << endl;
+      cerr << "ERROR (population::print_sample_ms): subpopulation p"<< i << " does not exists" << endl;
       exit(1);
     }
 
@@ -3032,10 +3070,11 @@ public:
       }
   } // end of add_mut() method
 
-  void remove_seg_mut(int x)
+  void remove_seg_mut(int x, chromosome& chr)
   {
 
-    // removes mutations segregating at position x from the entire population
+    // removes mutations segregating at position x from the entire population and updates the map
+      // chromosome::seg_nonneutr_mut
 
     vector<mutation>::iterator g;
 
@@ -3069,6 +3108,10 @@ public:
               } // end of while there are mutations to be checked
           } // end of for each child genome
       } // end of for each subpopulation
+
+      // update map seg_nonneutr_mut by removing the mutation with key x
+      chr.seg_nonneutr_mut.remove(x);
+
   } // end of method remove_seg_mut()
 
 }; // end of class 'population'
@@ -3092,22 +3135,22 @@ void input_error(int type, string line)
 
   if (type == -2) // no population defined
      {
-       cerr << "ERROR (parameter file): no population to simulate:" << endl << endl;
+       cerr << "ERROR (input_error [parameter file]): no population to simulate:" << endl << endl;
      }
   
   else if (type == -1) // unknown parameter
      {
-       cerr << "ERROR (parameter file): unknown parameter: " << line << endl << endl;
+       cerr << "ERROR (input_error [parameter file]): unknown parameter: " << line << endl << endl;
      }
 
   else if (type == 0) // invalid parameter file
     {
-      cerr << "ERROR (parameter file): could not open: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): could not open: " << line << endl << endl;
     }
   
   else if (type == 1) // mutation rate
     {
-      cerr << "ERROR (parameter file): invalid mutation rate: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid mutation rate: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#MUTATION RATE" << endl;
       cerr << "<u>" << endl << endl;
@@ -3118,7 +3161,7 @@ void input_error(int type, string line)
 
   else if (type == 2) // mutation type
     {
-      cerr << "ERROR (parameter file): invalid mutation type: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid mutation type: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#MUTATION TYPES" << endl;
       cerr << "<mutation-type-id> <h> <DFE-type> [DFE parameters]" << endl;
@@ -3132,7 +3175,7 @@ void input_error(int type, string line)
 
   else if (type == 3) // genomic element type
     {
-      cerr << "ERROR (parameter file): invalid genomic element type: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid genomic element type: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#GENOMIC ELEMENT TYPES" << endl;
       cerr << "<element-type-id> <mut-type> <x> [<mut-type> <x>...]" << endl;
@@ -3144,7 +3187,7 @@ void input_error(int type, string line)
 
   else if (type == 4) // chromosome organization
     {
-      cerr << "ERROR (parameter file): invalid chromosome organization: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid chromosome organization: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#CHROMOSOME ORGANIZATION" << endl;
       cerr << "<element-type> <start> <end>" << endl;
@@ -3156,7 +3199,7 @@ void input_error(int type, string line)
 
   else if (type == 5) // recombination rate
     {
-      cerr << "ERROR (parameter file): invalid recombination rate: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid recombination rate: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#RECOMBINATION RATE" << endl;
       cerr << "<interval-end> <r>" << endl;
@@ -3169,7 +3212,7 @@ void input_error(int type, string line)
   
   else if (type == 6) // generations
     {
-      cerr << "ERROR (parameter file): invalid generations: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid generations: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#GENERATIONS" << endl;
       cerr << "<t>" << endl << endl;
@@ -3180,7 +3223,7 @@ void input_error(int type, string line)
 
   else if (type == 7) // demography and structure
     {
-      cerr << "ERROR (parameter file): invalid demography and structure: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid demography and structure: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#DEMOGRAPHY AND STRUCTURE" << endl;
       cerr << "<time> <event-type> [event parameters]" << endl;
@@ -3199,7 +3242,7 @@ void input_error(int type, string line)
 
   else if (type == 8) // output
     {
-      cerr << "ERROR (parameter file): invalid output: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid output: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#OUTPUT" << endl;
       cerr << "<time> <output-type> [output parameters]" << endl;
@@ -3215,7 +3258,7 @@ void input_error(int type, string line)
 
   else if (type == 9) // initialization
     {
-      cerr << "ERROR (parameter file): invalid initialization: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid initialization: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#INITIALIZATION" << endl;
       cerr << "<filename>" << endl << endl;
@@ -3226,7 +3269,7 @@ void input_error(int type, string line)
 
   else if (type == 10) // seed
     {
-      cerr << "ERROR (parameter file): invalid seed: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid seed: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#SEED" << endl;
       cerr << "<seed>" << endl << endl;
@@ -3237,7 +3280,7 @@ void input_error(int type, string line)
 
   else if (type == 11) // predetermined mutation
     {
-      cerr << "ERROR (parameter file): invalid predetermined mutations: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid predetermined mutations: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#PREDETERMINED MUTATIONS" << endl;
       cerr << "<time> <mut-type> <x> <pop-id> <nAA> <nAa> <linkage> [P <f>]" << endl << endl;
@@ -3248,7 +3291,7 @@ void input_error(int type, string line)
 
   else if (type == 12) // gene conversion
     {
-      cerr << "ERROR (parameter file): invalid gene conversion: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid gene conversion: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#GENE CONVERSION" << endl;
       cerr << "<fraction> <average-length>" << endl << endl;
@@ -3259,7 +3302,7 @@ void input_error(int type, string line)
 
   else if (type == 13) // fitness interaction
     {
-      cerr << "ERROR (parameter file): invalid fitness interaction: " << line << endl << endl;
+      cerr << "ERROR (input_error [parameter file]): invalid fitness interaction: " << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#FITNESS INTERACTION" << endl;
       cerr << "<interaction-type>" << endl << endl;
@@ -3270,7 +3313,7 @@ void input_error(int type, string line)
 
   else if (type == 14) // environment
     {
-      cerr << "ERROR  (parameter file): invalid environment:" << line << endl << endl;
+      cerr << "ERROR  (input_error [parameter file]): invalid environment:" << line << endl << endl;
       cerr << "Required syntax:" << endl << endl;
       cerr << "#ENVIRONMENTS" << endl;
       cerr << "<environment-id> <mut-type> <h> <s-modif> [<mut-type> <<h>> <s-modif>...]" << endl;
@@ -3995,7 +4038,7 @@ void initialize_from_file(population& P, const char* file, chromosome& chr, char
 
   ifstream infile (file);
 
-  if (!infile.is_open()) { cerr << "ERROR (initialize): could not open initialization file" << endl; exit(1); }
+  if (!infile.is_open()) { cerr << "ERROR (initialize_from_file): could not open initialization file" << endl; exit(1); }
 
   get_line(infile, line);
 
