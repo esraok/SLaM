@@ -310,6 +310,8 @@ public:
   map<int,vector<float>>       seg_nonneutr_mut; // storing the mutation-type id and selection
     // coefficient of all non-neutral mutations that are segregating in the entire population, the
     // key being their physical position
+  map<int,vector<float>>       seg_nonneutr_mut_new; // as seg_nonneutr_mut, but for the new
+    // population consisting of all children
 
   int    L;   // length of chromosome
   double M;   // overall mutation rate, being built here as the product of the per-base pair rate
@@ -461,7 +463,7 @@ public:
         M_map.erase(x);
         M_map.insert(pair<int,mutation>(x,mutation(mut_type_id, x, s)));
 
-        seg_nonneutr_mut.erase(sm_it);
+        // update record of segregating non-neutral mutations
         vector<float> v;
         v.push_back((float) mut_type_id);
         v.push_back(s);
@@ -1952,12 +1954,12 @@ public:
     // print_all(chr);
 
     // test against chr.seg_nonneutr_mut and clear entire population from preexisting non-
-      // neutral mutation(s) at position m.x, unless the existing non-neutral mutation and the
+      // neutral mutation at position m.x, unless the existing non-neutral mutation and the
       // one to be introduced are identical in state (in terms of mutation-type and selection
       // coefficient in the reference environment); if the latter is the case, the desired
       // genotypes are introduced; the implementation below ensures that a given haploid genome has
-      // only one mutation at any given position x; previously existing mutations at x are
-      // overridden;
+      // only one mutation at any given position x; previously existing mutations at x in a given
+      // genome are overridden;
 
     // find potential segregating non-neutral mutation at position x and point to it
     map<int,vector<double>>::iterator snnm_it = chr.seg_nonneutr_mut.find(m.x);
@@ -2296,12 +2298,14 @@ public:
     map<int,double>::iterator it;
 
     // for each entry in the map of migration rates pertaining to subpopulation i
-    for (/* map<int,double>::iterator*/ it = find(i)->second.m.begin(); it != find(i)->second.m.end(); it++)
+    for (it = find(i)->second.m.begin(); it != find(i)->second.m.end(); it++)
       {
 
         // deterministically determine the number of immigrants from subpopulation corresponding
           // to it to subpopulation i
-        // Note that in a new version, the number of immigrants will be a random number
+        // Note that in a new version, the number of immigrants will be a random number, which
+          // solves potential issues arising when migration rates are very low
+
         int n_migrants = (int)(it->second * find(i)->second.N + 0.5);
 
         // for each immigrant to be drawn
@@ -2461,6 +2465,9 @@ public:
       // later updated to pointing to currently visited mutation in P1
     vector<mutation>::iterator p_max = p1_max; // pointing to the last mutation in parent genome P1
 
+    map<int,vector<float>>::iterator sm_it; // iterator to segregating non-neutral mutation
+      // in the entire child population
+
     int r = 0; // counter of visited recombination breakpoints
     int r_max = R.size(); // total number of recombination breakpoints
     int n = 0; // number of mutations (those transmitted from a parent or de-novo ones) added
@@ -2539,7 +2546,27 @@ public:
                   // position as the currently visited parental mutation resides, the parental
                   // mutation can be added to c
                   {
+
                     find(i)->second.G_child[c].push_back(*p);
+
+                    // update record of segregating non-neutral mutations in the current entire
+                      // population of children
+                    if (chr.mutation_types.find((*p).t)->second.p[0] != 0.0) // parental mutation
+                      // is of a non-neutral type
+                      {
+                        vector<float> v;
+                        v.push_back((float) (*p).t);
+                        v.push_back((*p).s);
+                        sm_it = chr.seg_nonneutr_mut_new.insert(pair<int,vector<float>>((*p).x,v));
+
+                        if (sm_it->second[0] != v[0] || sm_it->second[1] != v[1])
+                          {
+                            cerr << "ERROR (population:crossover_mutation): non-neutral segregating mutation in child population not identical with the one added at the sampe position" << endl;
+                          }
+                      }
+                    // TODO: GO ON HERE (4) Implementing update of chromosome::seg_neutr_mut_new
+                      // as done above, but now for de-novo muations added to child genome c
+                    // increase counter
                     n++;
                   }
                 p++; // shift pointer to next parental mutation
@@ -4674,7 +4701,10 @@ int main(int argc,char *argv[])
         {
           P.execute_event(itE->second, g, chr, TM, REV, EV);
         }
-   
+
+      // clear the record of new segregating non-neutral mutations
+      chr.seg_nonneutr_mut_new.clear();
+
       // evolve all subpopulations
 
       for (itP = P.begin(); itP != P.end(); itP++) // for each subpopulation
@@ -4682,6 +4712,10 @@ int main(int argc,char *argv[])
           // GO ON HERE (2): understand, and extend.
           P.evolve_subpopulation(itP->first, chr);
         } // end of for each subpopulation
+
+      // update the record of segregating non-neutral mutations such as to reflect the entire
+        // new population of children
+      chr.seg_nonneutr_mut = chr.seg_nonneutr_mut_new;
 
       // introduce user-defined mutations
         
