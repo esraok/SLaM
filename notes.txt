@@ -31,4 +31,4 @@
 ==========
 - Test and fix input and output after introduction of deme specific fitnesses and new mutation regime [PENDING]
 - Working on method initialize()
-- Current locations: 4685/2554*/487
+- Current locations: 4195/3131/4627
