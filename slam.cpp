@@ -146,7 +146,7 @@ class event
   // t N i n:      set size of subpopulation i to n
   // t M i j x:    set fraction x of subpopulation i that originates as migrants from j
   // t S i s:      set selfing fraction of subpopulation i to s
-  // t E i e:      assign environment e to subpopulation i at time t // TODO: Implement this.
+  // t E i e:      assign environment e to subpopulation i at time t
   //
   // t R i n:      output sample of n randomly drawn genomes from subpopulation i
   // t F:          output list of all mutations that have become fixed so far
@@ -307,10 +307,10 @@ public:
   vector<int>                   rec_x; // vector of end points of strata of a given recomb. rate
   vector<double>                rec_r; // vector of recombination rates for each stratum
 
-  map<int,vector<float>>       seg_nonneutr_mut; // storing the mutation-type id and selection
+  map< int,vector<float> >       seg_nonneutr_mut; // storing the mutation-type id and selection
     // coefficient of all non-neutral mutations that are segregating in the entire population, the
     // key being their physical position
-  map<int,vector<float>>       seg_nonneutr_mut_new; // as seg_nonneutr_mut, but for the new
+  map< int,vector<float> >       seg_nonneutr_mut_new; // as seg_nonneutr_mut, but for the new
     // population consisting of all children
 
   int    L;   // length of chromosome
@@ -453,7 +453,7 @@ public:
     // find potentially segregating non-neutral mutation at position x and point iterator to it;
       // update chromosome::seg_nonneutr_mut, which records the segregating non-neutral mutations
 
-    map<int,vector<double>>::iterator sm_it = seg_nonneutr_mut.find(x);
+    map< int,vector<float> >::iterator sm_it = seg_nonneutr_mut.find(x);
 
     if (sm_it == seg_nonneutr_mut.end()) // if there is no non-neutral mutation segregating at
       // position x
@@ -467,7 +467,7 @@ public:
         vector<float> v;
         v.push_back((float) mut_type_id);
         v.push_back(s);
-        seg_nonneutr_mut.insert(pair<int,vector<float>>(x,v));
+        seg_nonneutr_mut.insert(pair< int,vector<float> >(x,v));
 
       }
     else // there is a non-neutral mutation segregating at position x
@@ -491,7 +491,7 @@ public:
             // chromosome::seg_nonneutr_mut does not need to be updated at this point
 
           }
-        if (mut_type.t == (int) sm_it->second[0] && s == sm_it->second[1]) // the mutation to be
+        if (mut_type_id == (int) sm_it->second[0] && s == sm_it->second[1]) // the mutation to be
           // introduced is identical in state (in terms of mutation-type and selection coefficient
           // in the reference environment) with the one present at position x; this is a recurrent
           // mutation to the same allele
@@ -570,12 +570,12 @@ public:
     // identifier
 
   // polymorphism(int I, int T, float S, int N)
-  polymorphism(int I, int T, float S, map<int,int> N)
+  polymorphism(int I, int T, float S, pair<int,int> N)
   {
     i = I;
     t = T;
     s = S;
-    n = N;
+    n.insert(N);
   }
 
   /*
@@ -591,6 +591,8 @@ public:
       {
         ntot = ntot + nit->second;
       } // end of for each subpopulation
+
+    return ntot;
 
   } // end of method calc_ntot()
 
@@ -609,14 +611,16 @@ public:
     // print mutation id (re-assigned every generation), mutation type, physical position,
       // selection coefficient and dominance coefficient in the reference environment, and
       // total prevalence
-    cout << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n;
+    int pos = x+1;
+    cout << i << " m" << t << " " << pos << " " << s << " " << h << " " << ntot;
 
     // print prevalence in each subpopulation
 
     // for each subpopulation
-    for (nit = n.begin(); nit != n.end(); nit++)
+    map<int,int>::iterator n_it;
+    for (n_it = n.begin(); n_it != n.end(); n_it++)
       {
-        cout << " p" << nit->first << " " << nit->second;
+        cout << " p" << n_it->first << " " << n_it->second;
       } // end of for each subpopulation
     cout << endl;
 
@@ -637,14 +641,16 @@ public:
     // print mutation id (re-assigned every generation), mutation type, physical position,
       // selection coefficient and dominance coefficient in the reference environment, and
       // total prevalence
-    outfile << i << " m" << t << " " << x+1 << " " << s << " " << h << " "<< n;
+    int pos = x+1;
+    outfile << i << " m" << t << " " << pos << " " << s << " " << h << " "<< ntot;
 
     // print prevalence in each subpopulation
 
     // for each subpopulation
-    for (nit = n.begin(); nit != n.end(); nit++)
+    map<int,int>::iterator n_it;
+    for (n_it = n.begin(); n_it != n.end(); n_it++)
       {
-        outfile << " p" << nit->first << " " << nit->second;
+        outfile << " p" << n_it->first << " " << n_it->second;
       } // end of for each subpopulation
     outfile << endl;
 
@@ -1340,14 +1346,14 @@ public:
                 // distinguish between two fitness regimes (additive vs. multiplicative)
                 if (fi == 'a') // if fitness interaction is additive
                   {
-                    // TODO: Change to environment-specific fitnesses
+                    // In new version: Change to environment-specific fitnesses
                     w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s; // the dominance
                       // coefficient is a public variable of the class mutation type; the selection
                       // coefficient is a public variable of the class mutation
                   } // fitness interaction is not additive
                 else if (fi == 'm') // ie fitness interaction is multiplicative
                   {
-                    // TODO: Change to environment-specific fitnesses
+                    // In new version: Change to environment-specific fitnesses
                     w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
                   } // fitness interaction is neither additive nor multiplicative
                 else
@@ -1367,13 +1373,13 @@ public:
                 // distinguish between two fitness regimes (additive vs. multiplicative)
                 if (fi == 'a') // if fitness interaction is additive
                   {
-                    // TODO: Change to environment-specific fitnesses
+                    // In new version: Change to environment-specific fitnesses
                     w = w + chr.mutation_types.find((*pj).t)->second.h * (*pj).s; // see above for
                       // details
                   } // fitness interaction is not additive
                 else if (fi == 'm')
                   {
-                    // TODO: Change to environment-specific fitnesses
+                    // In new version: Change to environment-specific fitnesses
                     w = w * (1.0 + chr.mutation_types.find((*pj).t)->second.h * (*pj).s);
                   } // fitness interaction is neither additive nor multiplicative
                 else
@@ -1396,10 +1402,6 @@ public:
               // position; recall that one (haploid!) 'genome' can harbour more than one mutation
               // at the same position, as long as the mutations do not have the same type AND
               // selection coefficient.
-            // TODO: Change this. Allow for only two segregating mutations of a non-neutral type at
-              // a given physical position in the whole population. Probably best to handle this
-              // case when mutations are created, but then do a check here, and exit if the rule is
-              // broken.
 
             while (pi != pi_max && (*pi).x == x) // visiting all mutations in genome i that reside
               // at a given physical position x
@@ -1415,9 +1417,10 @@ public:
                         // Note that no permanent mutation identifiers are stored for reasons of
                           // computational efficiency (memory). hence identity is assessed based on
                           // mutation type and selection coefficient
-                        // TODO: Stick to the practice of not storing mutation identifiers, but
-                          // then identity must be defined based on properties (mutation type and
-                          // selection coefficient) in the reference environment.
+                        // In new version: Stick to the practice of not storing mutation
+                          // identifiers, but then identity must be defined based on properties
+                          // (mutation type and selection coefficient) in the reference
+                          // environment.
                         if ((*pi).t == (*temp_j).t && (*pi).s == (*temp_j).s) // if currently
                           // visited mutations in genomes i and j are biologically the same
                             // (identical by state)
@@ -1426,7 +1429,7 @@ public:
                               // multiplicative)
                             if (fi == 'a')
                               {
-                                // TODO: Change to environment-specific fitnesses
+                                // In new version: Change to environment-specific fitnesses
                                 w = w + (*pi).s;
                                 homo = 1;
                               } // fitness interaction is not additive
@@ -1447,21 +1450,21 @@ public:
                         // flawed. Dominance is applied here only from the perspective of a focal
                         // mutation (*pi), irrespective of the other mutation present. However,
                         // dominance is a feature of the genotype.
-                      // TODO: Fix this by allowing only one mutation of a non-neutral type at any
-                        // physical position (neutrality being defined w.r.t. the reference
-                        // environment). It then has to be the case that the mutation at x in
-                        // gemone j must be a neutral one, given that the mutation at x in genome i
-                        // is non-neutral and the individual is heterozygous.
+                      // In new version: Fix this by allowing only one mutation of a non-neutral
+                        // type at any physical position (neutrality being defined w.r.t. the
+                        // reference environment). It then has to be the case that the mutation at
+                        // x in gemone j must be a neutral one, given that the mutation at x in
+                        // genome i s non-neutral and the individual is heterozygous.
                       {
                         // distinguish between two fitness regimes (additive vs. multiplicative)
                         if (fi == 'a')
                           {
-                            // TODO: Change to environment-specific fitnesses
+                            // In new version: Change to environment-specific fitnesses
                             w = w + chr.mutation_types.find((*pi).t)->second.h * (*pi).s;
                           }
                         else if (fi == 'm')
                           {
-                            // TODO: Change to environment-specific fitnesses
+                            // In new version: Change to environment-specific fitnesses
                             w = w * (1.0 + chr.mutation_types.find((*pi).t)->second.h * (*pi).s);
                           }
                         else
@@ -1926,7 +1929,7 @@ public:
       {
 
         // shuffle the individuals' indices
-        std::random_suffle(std::begin(ix_all), std:end(ix_all));
+        random_shuffle(&ix_all[0], &ix_all[n+1]);
 
         // OLD:
         // shuffle genomes in subpopulation (*sp) to generate linkage equilibrium
@@ -1962,7 +1965,7 @@ public:
       // genome are overridden;
 
     // find potential segregating non-neutral mutation at position x and point to it
-    map<int,vector<double>>::iterator snnm_it = chr.seg_nonneutr_mut.find(m.x);
+    map< int,vector<float> >::iterator snnm_it = chr.seg_nonneutr_mut.find(m.x);
 
     // if a non-neutral mutation is segregating at position m.x
     if (snnm_it != chr.seg_nonneutr_mut.end())
@@ -2137,7 +2140,7 @@ public:
         vector<float> v;
         v.push_back((float) m.t);
         v.push_back(m.s);
-        chr.seg_nonneutr_mut.insert(pair<int,vector<float>>(m.x,v));
+        chr.seg_nonneutr_mut.insert(pair< int,vector<float> >(m.x,v));
       }
 
   } // end of method introduce_mutation()
@@ -2217,7 +2220,7 @@ public:
                           // mutations
                         if (it->second.G_child[i][k].x == PS[j].x && it->second.G_child[i][k].t == PS[j].t)
                           {
-                            add_mut(P, it->second.G_child[i][k], it.first);
+                            add_mut(P, it->second.G_child[i][k], it->first);
                           }
                       } // end of iterate over all partial sweeps
                   } // end of iterate over all mutations
@@ -2335,7 +2338,6 @@ public:
               }
 
             // recombination, gene-conversion, mutation
-            // TODO: GO ON HERE (3)
             crossover_mutation(i, g1, it->first, 2*p1, 2*p1+1, chr);
             crossover_mutation(i, g2, it->first, 2*p2, 2*p2+1, chr);
 
@@ -2431,7 +2433,7 @@ public:
     // for each element in M_map
     while (M_map_it != M_map.end())
       {
-        M.push_back(M_map_it->second());
+        M.push_back(M_map_it->second);
         M_map_it++;
       } // end of for each element in M_map
     // mutations in M are now sorted according to physical position
@@ -2465,8 +2467,8 @@ public:
       // later updated to pointing to currently visited mutation in P1
     vector<mutation>::iterator p_max = p1_max; // pointing to the last mutation in parent genome P1
 
-    map<int,vector<float>>::iterator sm_it; // iterator to segregating non-neutral mutation
-      // in the entire child population
+    pair< map< int,vector<float> >::iterator,bool> sm_ret; // pair of iterator and boolean value to
+      // test whether a new mutation has been added to chromosome::seg_nonneutr_mut_new
 
     int r = 0; // counter of visited recombination breakpoints
     int r_max = R.size(); // total number of recombination breakpoints
@@ -2557,16 +2559,19 @@ public:
                         vector<float> v;
                         v.push_back((float) (*p).t);
                         v.push_back((*p).s);
-                        sm_it = chr.seg_nonneutr_mut_new.insert(pair<int,vector<float>>((*p).x,v));
-
-                        if (sm_it->second[0] != v[0] || sm_it->second[1] != v[1])
+                        sm_ret = chr.seg_nonneutr_mut_new.insert(pair< int,vector<float> >((*p).x,v));
+                        // if no update was made to chr.seg_nonneutr_mut_new because a record
+                          // for this position was already present in chr.seg_nonneutr_mut_new
+                        if (sm_ret.second == false)
                           {
-                            cerr << "ERROR (population:crossover_mutation): non-neutral segregating mutation in child population not identical with the one added at the sampe position" << endl;
-                          }
-                      }
-                    // TODO: GO ON HERE (4) Implementing update of chromosome::seg_neutr_mut_new
-                      // as done above, but now for de-novo muations added to child genome c
-                    // increase counter
+                            if (sm_ret.first->second[0] != v[0] || sm_ret.first->second[1] != v[1])
+                              {
+                                cerr << "ERROR (population:crossover_mutation): non-neutral segregating mutation in child population not identical with the one added at the sampe position" << endl;
+                              }
+                          } // end of if no update was made to chr.seg_nonneutr_mut_new
+                      } // end of if parental mutation is of a non-neutral type
+
+                    // increase counter of mutations added to child genome c
                     n++;
                   }
                 p++; // shift pointer to next parental mutation
@@ -2581,7 +2586,7 @@ public:
               // are de-novo mutations prior to the current recombination breakpoint and (all
               // previously existing mutations have been visited or the position of the currently
               // visited de-novo mutation is not larger than the one of the current parental
-              // mutation
+              // mutation)
               {
                 present = 0;
                 if (n != 0 && find(i)->second.G_child[c].back().x == (*m).x) // if at least one
@@ -2595,13 +2600,36 @@ public:
                     // NEW:
 
                     // there is at most one mutation at any given position x in M, P1, and P2;
-                      // hence, if .back() of child c is at position x, it is the only one
+                      // hence, if .back() of child c is at position x, it is the only one at
+                      // position x so far
                     present = 1;
 
                     // the previously existing mutation at .back().x in c must be replaced
-                      // by the currently visited de-novo mutation
+                      // by the currently visited de-novo mutation; de-novo mutations override
+                      // any existing previous de-novo or parental mutation
 
                     find(i)->second.G_child[c][k] = (*m);
+
+                    // update record of segregating non-neutral mutations in the current entire
+                      // population of children
+                    if (chr.mutation_types.find((*m).t)->second.p[0] != 0.0) // de-novo mutation
+                      // is of a non-neutral type
+                      {
+                        vector<float> v;
+                        v.push_back((float) (*m).t);
+                        v.push_back((*m).s);
+                        sm_ret = chr.seg_nonneutr_mut_new.insert(pair< int,vector<float> >((*m).x,v));
+                        // if no update was made to chr.seg_nonneutr_mut_new because a record
+                          // for this position was already present in chr.seg_nonneutr_mut_new
+                        if (sm_ret.second == false)
+                          {
+                            if (sm_ret.first->second[0] != v[0] || sm_ret.first->second[1] != v[1])
+                              {
+                                cerr << "ERROR (population:crossover_mutation): non-neutral segregating mutation in child population not identical with the one added at the sampe position" << endl;
+                              }
+                          } // end of if no update was made to chr.seg_nonneutr_mut_new
+
+                      } // end of if de-novo mutation is of a non-neutral type
 
                     // no need to increase n, as we only replaced an existing mutation
 
@@ -2644,6 +2672,27 @@ public:
                   // mutation can be added to c
                   {
                     find(i)->second.G_child[c].push_back(*m);
+
+                    // update record of segregating non-neutral mutations in the current entire
+                      // population of children
+                    if (chr.mutation_types.find((*m).t)->second.p[0] != 0.0) // de-novo mutation is
+                      // of a non-neutral type
+                      {
+                        vector<float> v;
+                        v.push_back((float) (*m).t);
+                        v.push_back((*m).s);
+                        sm_ret = chr.seg_nonneutr_mut_new.insert(pair< int,vector<float> >((*m).x,v));
+
+                        if (sm_ret.second == false)
+                          {
+                            if (sm_ret.first->second[0] != v[0] || sm_ret.first->second[1] != v[1])
+                              {
+                                cerr << "ERROR (population:crossover_mutation): non-neutral segregating mutation in child population not identical with the one added at the sampe position" << endl;
+                              }
+                          } // end of if no update was made to chr.seg_nonneutr_mut_new
+                      } // end of if de-novo mutation is of a non-neutral type
+
+                    // increase counter of mutations added to child genome c
                     n++;
                   }
                 m++; // shift pointer to next de-novo mutation
@@ -2842,7 +2891,7 @@ public:
           {
             for (int k = 0; k < it->second.G_child[i].size(); k++) // iterate over all mutations
               {
-                add_mut(P, it->second.G_child[i][k], it.first);
+                add_mut(P, it->second.G_child[i][k], it->first);
               } // end of iterate over all mutations
           } // end of iterate over all children
       } // end of iterate over all subpopulations
@@ -3070,7 +3119,7 @@ public:
             map<int,int>::iterator count_it;
             count_it = it->second.n.find(spid);
 
-            if (count_it == second.n.end()) // counter does not yet exist
+            if (count_it == it->second.n.end()) // counter does not yet exist
               {
                 // insert counter
                 it->second.n.insert(pair<int,int>(spid,1));
@@ -3092,7 +3141,7 @@ public:
     if (id == 0)
       {
         id = P.size() + 1;
-        P.insert(pair<int,polymorphism>(m.x, polymorphism(id, m.t, m.s, pair<int,int>(spid,1)))); // the last argument to the constructor of polymorphism is the map of prevalences;
+        P.insert(pair<int,polymorphism>(m.x, polymorphism(id, m.t, m.s, pair<int,int>(spid,1)))); // the last argument to the constructor of polymorphism is the prevalence;
           // here, we initalise the polymorphism with just one count in subpopulation spid
       }
   } // end of add_mut() method
@@ -3120,7 +3169,7 @@ public:
               // one mutation at position m.x has been found, all have been found
               {
                 // if currently visited mutation is located at position x
-                if ((*g).x == m.x)
+                if ((*g).x == x)
                   {
                     // remove currently visited mutation and point iterator to next
                       // following mutation
@@ -3137,7 +3186,7 @@ public:
       } // end of for each subpopulation
 
       // update map seg_nonneutr_mut by removing the mutation with key x
-      chr.seg_nonneutr_mut.remove(x);
+      chr.seg_nonneutr_mut.erase(x);
 
   } // end of method remove_seg_mut()
 
@@ -4691,7 +4740,7 @@ int main(int argc,char *argv[])
  
   // evolve over t generations
 
-  for (int g = 1; g <= T; g++)
+  for (int g = 1; g <= T; g++) // for each generation
     { 
       // execute demographic and substructure events in this generation 
 
@@ -4709,7 +4758,6 @@ int main(int argc,char *argv[])
 
       for (itP = P.begin(); itP != P.end(); itP++) // for each subpopulation
         {
-          // GO ON HERE (2): understand, and extend.
           P.evolve_subpopulation(itP->first, chr);
         } // end of for each subpopulation
 
@@ -4738,20 +4786,21 @@ int main(int argc,char *argv[])
       // range of output events happening in generation g
       pair<multimap<int,event>::iterator,multimap<int,event>::iterator> rangeO = O.equal_range(g);
 
-      for (itO = rangeO.first; itO != rangeO.second; itO++)
+      for (itO = rangeO.first; itO != rangeO.second; itO++) // for each output event in gen. g
         {
           P.execute_event(itO->second, g, chr, TM, REV, EV);
-        }
+        } // end of for each output event in generation g
 
       // track particular mutation-types and set s = 0 for partial sweeps when completed
       
-      if (TM.size() > 0 || PS.size() > 0)
+      if (TM.size() > 0 || PS.size() > 0) // if there are mutations to be tracked or (partial)
+        // sweeps going on
       {
         P.track_mutations(g, TM, PS, chr);
-      }
+      } // end of if there are mutations to be tracked or (partial) sweeps going on
 
       // swap generations
 
       P.swap_generations(g, chr, FI, EV);
-    }
+    } // end of for each generation
 } // end of method main()

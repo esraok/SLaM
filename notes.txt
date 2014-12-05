@@ -11,8 +11,8 @@
 
 - Started change from passing a reference to the map of environments to subpopulation::W() and subpopulation::update_fitness(), to passing only the reference to the correct single environment. TODO: Go on with this; add const where environment references are passed, because environments must not be changed. [DONE]
 
-11/17/2014
-==========
+11/17/2014 till 12/04/2014
+==========================
 
 - Started working on output of subpopulation-specific prevalences. First, adjust polymorphism::print() [DONE], then polymorphism::print_noi() [DONE]. Then work on population::print_all() [two versions, DONE], population::print_sample() [DONE], population::print_sample_ms() [DONE], population::add_mut() [DONE], population::track_mutations()[DONE], population::find_mut() [called by population::print_all() and population::print_sample(), DONE]
 - REMARK: The method polymorphism::print_noi() is used to print subpopulation-specific prevalences, yet in its current implementation, it gives dominance and selection coefficients valid for the reference environment, not for the respective subpopulation. This could be changed later, if needed.
@@ -21,5 +21,14 @@
 - Work on chromosome::draw_new_mut() [DONE], population::crossover_mutation() [DONE, with major revisions], and population::introduce_mutation() [DONE]. For the latter, adjust to the new scheme of replacing previously existing non-neutral mutations at a given position x.
 - TODO: Handle occurrence of multiple *neutral* mutations at the very same position in a given haploid genome. This should be disallowed; preexisting mutations should be overridden. Concerned methods are population::draw_new_mut() [DONE] and population::introduce_mutation() [DONE];
 - TODO: Do not forget to add newly introduced non-neutral mutations to chromosome::seg_nonneut_mut() after introducing them; See point below for an update
-- I must make sure that if a segregating non-neutral mutation does not make it into a child population before populations are ‘swapped’, that non-neutral mutation is removed from chromosome::seg_nonneutr_mut. Ideally, the method population::remove_fixed() can be extended such as to perform this check. There should be a globally (or widely) accessible record of parental non-neutral mutations that do not make it into the entire child population (i.e. the union of child subpopulations) every generation. The record simply needs to store physical positions at which a segregating non-neutral parental mutation failed to be transmitted to at least one child individual in the entire population. It might actually be better to have a vector accumulate physical positions at which a segregating non-neutral mutation was successfully transferred to at least one child. When all children are built, the complement of the set of positions in that vector with respect to the set of keys of seg_nonneutr_mut is the set of positions at which a segregating non-neutral mutation did not make it into the new entire population of children. TODO: Implement this.
+- I must make sure that if a segregating non-neutral mutation does not make it into a child population before populations are ‘swapped’, that non-neutral mutation is removed from chromosome::seg_nonneutr_mut. Solution: The class chromosome now has a second record besides seg_nonneutr_mut, which is called seg_nonneutr_mut_new. That new record accumulates physical positions (and respective mutation types and selection coefficients) at which a segregating non-neutral mutation was successfully transferred to at least one child. When all children are built, seg_nonneutr_mut is replaced by seg_nonneutr_mut_new. The so-called ‘predetermined mutations’ are introduced after seg_nonneutr_mut has been updated.
+
+12/04/2014
+==========
+- Debugging after changes to mutation scheme (see entry of 11/17/2014 till 12/04/2014 above) [DONE]
+
+12/04/2014
+==========
+- Test and fix input and output after introduction of deme specific fitnesses and new mutation regime [PENDING]
+- Working on method initialize()
 - Current locations: 4685/2554*/487
